@@ -172,7 +172,6 @@ function countTo(el, to) {
   if (bal) { bal.classList.remove('gain', 'loss'); void bal.offsetWidth; bal.classList.add(to > from ? 'gain' : 'loss'); clearTimeout(bal._t); bal._t = setTimeout(() => bal.classList.remove('gain', 'loss'), 1100); }
 }
 
-const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 // offset of `el` from the card shoe (falls back to the top of the table when the shoe is hidden on small screens)
 function shoeOffset(el) {
@@ -351,7 +350,7 @@ function seedLoginBg() {
 function setStep(step) {
   const first = S.step === undefined, prev = S.step;
   S.step = step;
-  if (!first && prev !== step && !REDUCED.matches) {
+  if (!first && prev !== step) {
     const c = $('.login-card'); c.classList.remove('flip'); void c.offsetWidth; c.classList.add('flip');
     setTimeout(() => c.classList.remove('flip'), 520);
     setTimeout(() => applyStep(step), 230);

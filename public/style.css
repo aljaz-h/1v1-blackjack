@@ -322,7 +322,6 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
   .lseat{min-height:96px;padding:8px}
 }
 /* reduced motion: no endless loops, but keep the one-shot game animations (deal, flip, chips) */
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-iteration-count:1!important}}
 
 .seat.empty>*:not(.emptytxt){display:none}
 .emptytxt{display:none;font-weight:700;letter-spacing:.06em;font-size:12px}
@@ -609,7 +608,6 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 .fdice i{width:9px;height:9px;border-radius:50%;background:#111827;place-self:center}
 .fsuit{font:900 84px/1 var(--font)}
 .fbadge{font:900 40px/1 var(--font);letter-spacing:.04em;color:#fbbf24;padding:8px 18px;border:3px solid currentColor;border-radius:14px}
-@media (prefers-reduced-motion:reduce){.login-bg .fl{animation:none}.login-card.flip{animation:none}}
 @media (max-width:640px){.login-card{padding:40px 30px 36px}.login-card .wm{font-size:180px}}
 /* login card: taller, content centred */
 .login-card{min-height:500px;justify-content:center;text-align:center}
