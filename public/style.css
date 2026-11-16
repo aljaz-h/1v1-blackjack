@@ -542,7 +542,7 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
   .tablebox.tall,.tablebox{min-height:0}
 }
 /* lobby: mode picker, blitz switch, seats */
-.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.modes{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .modes button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:12px;background:var(--panel2);border:1px solid var(--line2);color:var(--dim);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 .modes button .ic{font-size:18px}
 .modes button:hover:not(:disabled){color:var(--txt)}
@@ -862,3 +862,4 @@ body:not([data-game="poker"]) [data-g="pk"],body[data-game="poker"] [data-g="bj"
 }
 .felt[data-game="poker"] .arc-t1,.felt[data-game="poker"] .arc-t2{display:none}
 .modes button.on:hover:not(:disabled){color:#111214}
+@container (min-width:560px){.seats[data-m="1"]{--cwb:96px}}

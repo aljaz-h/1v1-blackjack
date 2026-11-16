@@ -22,6 +22,7 @@ const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)
 const NSEATS = 6;
 const seatColor = (i) => (i >= 0 && i < NSEATS ? `var(--s${i})` : '');
 const MODES = {
+  solo: { label: 'Solo', icon: 'coins', desc: 'Just you against the dealer. Play until you are broke or the round limit hits; finish ahead of your starting stack to win.' },
   duel: { label: 'Duel', icon: 'swords', desc: 'Head to head: two players each play the dealer. Last one with chips wins.' },
   classic: { label: 'Classic', icon: 'users', desc: '2–6 players, each against the dealer. Play on until one stack is left or the round limit hits.' },
   showdown: { label: 'Showdown', icon: 'dices', desc: '2–6 players, no dealer. Best hand takes the pot (side pots for unequal bets). A natural blackjack beats 21.' },
@@ -1033,7 +1034,7 @@ function renderLobby(v) {
     $('#settings').dataset.mode = st.mode;
     $$('#gameSel button').forEach((b) => b.classList.toggle('on', b.dataset.game === (st.game || 'blackjack')));
     $('#lblRounds').textContent = st.game === 'poker' ? 'Hands' : 'Rounds';
-    $('#sRounds').options[0].textContent = st.mode === 'duel' ? 'Until broke' : 'Until one left';
+    $('#sRounds').options[0].textContent = st.mode === 'duel' || st.mode === 'solo' ? 'Until broke' : 'Until one left';
   }
   $$('#settings input, #settings select, #balPresets button, #modeSel button, #gameSel button').forEach((el) => (el.disabled = !isHost));
   $('#sMax').disabled = !isHost || st.maxBetMode !== 'manual';
@@ -1139,10 +1140,10 @@ function renderOver(v) {
   const sig = JSON.stringify([o, v.seats.map((s) => s && [s.id]), v.you.seat, v.round]);
   if (S.sig.over === sig) return;
   S.sig.over = sig;
-  const mode = modeOf(v), duel = mode === 'duel';
+  const mode = modeOf(v), duel = mode === 'duel', solo = mode === 'solo';
   const top = o.winner >= 0 ? rk.find((r) => r.seat === o.winner) : null;
-  const title = top ? (mode === 'holdem' ? `${esc(top.name)} wins the table` : mode === 'tournament' ? `${esc(top.name)} wins the tournament` : duel || mode === 'showdown' || mode === 'classic' ? `${esc(top.name)} takes the pot` : '') : 'Dead heat';
-  const reason = { broke: duel ? 'Opponent is out of chips' : 'Last player standing', rounds: 'Round limit reached. Highest stack wins', forfeit: duel ? 'Opponent forfeited' : 'Everyone else left', disconnect: duel ? 'Opponent disconnected' : 'Everyone else left' }[o.reason] || '';
+  const title = solo ? (o.winner >= 0 ? 'You finished ahead' : o.reason === 'broke' ? 'Busted out' : o.reason === 'rounds' ? 'Session over' : 'You left the table') : top ? (mode === 'holdem' ? `${esc(top.name)} wins the table` : mode === 'tournament' ? `${esc(top.name)} wins the tournament` : duel || mode === 'showdown' || mode === 'classic' ? `${esc(top.name)} takes the pot` : '') : 'Dead heat';
+  const reason = solo ? { broke: 'You ran out of chips', rounds: o.winner >= 0 ? 'Round limit reached with a profit' : 'Round limit reached below your starting stack', forfeit: 'You left the table', disconnect: 'You disconnected' }[o.reason] || '' : { broke: duel ? 'Opponent is out of chips' : 'Last player standing', rounds: 'Round limit reached. Highest stack wins', forfeit: duel ? 'Opponent forfeited' : 'Everyone else left', disconnect: duel ? 'Opponent disconnected' : 'Everyone else left' }[o.reason] || '';
   const start = v.settings.startingBalance;
   const stat = (r) => { const sx = v.seats[r.seat]; return sx && sx.name === r.name ? (mode === 'holdem' ? `${v.stats.w[r.seat]} hands won · ${v.stats.l[r.seat]} lost` : `${v.stats.w[r.seat]}W · ${v.stats.l[r.seat]}L · ${v.stats.p[r.seat]}P · ${v.stats.bj[r.seat]} BJ`) : ''; };
   const body = rk.length <= 2
@@ -1190,7 +1191,7 @@ function renderSide(v) {
     if (mode !== 'showdown') rules.push(`BJ ${st.payout === 1.5 ? '3:2' : st.payout === 1.2 ? '6:5' : '1:1'}`, st.h17 ? 'H17' : 'S17');
     rules.push(`Bet ${fmt(lim.min)}–${fmtMax(lim.max)}`);
     if (mode === 'tournament') rules.push(`Level ${lim.level + 1}`, `Blinds ×1.5 / ${st.blindEvery} rds`);
-    rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' ? 'Until broke' : 'Until one left');
+    rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' || mode === 'solo' ? 'Until broke' : 'Until one left');
   }
   $('#rules').innerHTML = rules.map((t) => (t.startsWith('<span') ? t : `<span>${t}</span>`)).join('');
   if (mode === 'holdem') {
@@ -1389,7 +1390,7 @@ function render(v, prev) {
   { const n = nPos, sp = [1, 1, .55, .7, .85, 1][n] ?? 1;
     const fw = $('#felt').clientWidth || 1000, fh = $('#felt').clientHeight || 600;
     for (let i = 0; i < NSEATS; i++) {
-      const t = Math.PI * ((pkLayout ? Math.max(0, seatedIdx.indexOf(i)) : i) + .5) / n, x = 50 - 41 * sp * Math.cos(t), y = 27 + 46 * Math.sin(t);
+      const t = Math.PI * ((pkLayout ? Math.max(0, seatedIdx.indexOf(i)) : i) + .5) / n, x = 50 - 41 * sp * Math.cos(t), y = n === 1 && !pkLayout ? 60 : 27 + 46 * Math.sin(t);
       seatNodes[i].style.setProperty('--x', x.toFixed(1) + '%'); seatNodes[i].style.setProperty('--y', y.toFixed(1) + '%');
       // poker: slide each seat's street bet toward the middle of the table
       const dx = (50 - x) * fw / 100, dy = (40 - y) * fh / 100, d = Math.hypot(dx, dy) || 1, k = Math.min(86, d * 0.45) / d;

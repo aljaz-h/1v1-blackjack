@@ -317,3 +317,30 @@ test('random play: chips are conserved and every hand terminates', () => {
 function act2(st, user, type, t, extra = {}) {
   E.applyAction(st, user, { type, ...extra }, t);
 }
+
+/* ---------- solo blackjack ---------- */
+test('solo: one player starts alone, plays the dealer, and the session ends at the round limit or when broke', () => {
+  const st = E.newRoom('solo', T0);
+  E.applyAction(st, U[0], { type: 'join' }, T0);
+  E.applyAction(st, U[1], { type: 'join' }, T0);
+  E.applyAction(st, U[0], { type: 'settings', settings: { mode: 'solo', startingBalance: 100, minBet: 10, maxBet: 100, maxRounds: 5 } }, T0);
+  E.applyAction(st, U[0], { type: 'open' }, T0);
+  E.applyAction(st, U[0], { type: 'sit', seat: 0 }, T0);
+  assert.throws(() => E.applyAction(st, U[1], { type: 'sit', seat: 1 }, T0), /./, 'only one seat');
+  E.applyAction(st, U[0], { type: 'ready', value: true }, T0);
+  assert.strictEqual(st.phase, 'betting');
+  assert.strictEqual(E.buildView(st, U[0].id, T0).mode.max, 1);
+  let t = T0, guard = 0;
+  while (st.phase !== 'over' && guard++ < 400) {
+    t += 1000;
+    if (st.phase === 'betting' && st.bets[0] == null) E.applyAction(st, U[0], { type: 'bet', amount: 10 }, t);
+    else if (st.phase === 'playing' && st.ins) E.applyAction(st, U[0], { type: 'insure', amount: 0 }, t);
+    else if (st.phase === 'playing' && st.turn) E.applyAction(st, U[0], { type: 'stand_hand' }, t);
+    else if (st.phase === 'settled') E.applyAction(st, U[0], { type: 'next' }, t);
+    else { E.applyAction(st, U[0], { type: 'ping' }, t); E.tick(st, Math.max(t, st.timerAt || 0)); }
+  }
+  assert.strictEqual(st.phase, 'over');
+  assert.strictEqual(st.round, 5);
+  assert.strictEqual(st.over.reason, 'rounds');
+  assert.strictEqual(st.over.winner >= 0, st.balances[0] > 100, 'a win means finishing ahead of the starting stack');
+});

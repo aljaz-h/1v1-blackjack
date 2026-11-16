@@ -42,6 +42,7 @@
 
 | Mode | Players | Goal |
 |---|---|---|
+| **Solo** | 1 | Just you against the dealer. Play until you are broke or the round limit hits. |
 | **Duel** | 2 | Two players each play the dealer. Last one with chips wins. |
 | **Classic** | 2-6 | Everyone plays the dealer until one stack is left or the round limit hits. |
 | **Showdown** | 2-6 | No dealer. Best hand takes the pot, with side pots for unequal bets. |
