@@ -59,44 +59,86 @@ const isRed = (c) => c && (c.endsWith('H') || c.endsWith('D'));
 /* =====================================================================
    sound (all synthesised, no assets)
    ===================================================================== */
-const sfx = (() => {
-  let ctx = null, master = null, muted = LS.get('bj.mute') === '1';
-  function ensure() {
-    if (!ctx) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return null;
-      ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.55; master.connect(ctx.destination);
+// Soft, warm sound design: everything goes through a gentle low-pass, a soft limiter and a touch of room reverb.
+// `getCtx()` returns the AudioContext to play into (an OfflineAudioContext in tests); `isMuted()` gates playback.
+function createSfx(getCtx, isMuted) {
+  let bus = null, busCtx = null, noiseBuf = null;
+  function chain(c) {
+    if (bus && busCtx === c) return bus;
+    busCtx = c;
+    const master = c.createGain(); master.gain.value = 3.2;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6500; lp.Q.value = 0.4;
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 20; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
+    master.connect(lp); lp.connect(comp); comp.connect(c.destination);
+    // small generated room: decaying, darkened noise
+    const len = (c.sampleRate * 1.3) | 0, ir = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); let lpv = 0; for (let i = 0; i < len; i++) { lpv += (((Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6)) - lpv) * 0.35; d[i] = lpv; } }
+    const conv = c.createConvolver(); conv.buffer = ir;
+    const wet = c.createGain(); wet.gain.value = 0.32; conv.connect(wet); wet.connect(master);
+    // soft pink-ish noise for swishes
+    const nl = c.sampleRate | 0; noiseBuf = c.createBuffer(1, nl, c.sampleRate);
+    const nd = noiseBuf.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < nl; i++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913; nd[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
+    return (bus = { master, conv });
+  }
+  const ready = () => { if (isMuted()) return null; const c = getCtx(); return c ? { c, b: chain(c) } : null; };
+  const jit = (x, p = 0.06) => x * (1 + (Math.random() * 2 - 1) * p);
+  // pitched note with soft attack and exponential decay
+  function note(freq, t, dur, { type = 'sine', gain = 0.08, attack = 0.012, send = 0.5, overtone = 0 } = {}) {
+    const r = ready(); if (!r) return; const { c, b } = r, t0 = c.currentTime + t;
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(gain, t0 + attack); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    const dry = c.createGain(); dry.gain.value = 1 - send * 0.5; const s = c.createGain(); s.gain.value = send;
+    g.connect(dry); g.connect(s); dry.connect(b.master); s.connect(b.conv);
+    for (const [m, gm] of overtone ? [[1, 1], [overtone, 0.25]] : [[1, 1]]) {
+      const o = c.createOscillator(), og = c.createGain(); o.type = type; o.frequency.value = freq * m; og.gain.value = gm; o.connect(og); og.connect(g); o.start(t0); o.stop(t0 + dur + 0.05);
     }
+  }
+  // damped resonance (wood / clay click)
+  function click(freq, t, decay, gain) {
+    const r = ready(); if (!r) return; const { c, b } = r, t0 = c.currentTime + t;
+    const o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(freq, t0); o.frequency.exponentialRampToValueAtTime(freq * 0.86, t0 + decay);
+    g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + decay);
+    o.connect(g); g.connect(b.master); o.start(t0); o.stop(t0 + decay + 0.02);
+  }
+  // filtered noise burst (card slide / paper)
+  function swish(t, dur, { gain = 0.1, from = 1400, to = 3200, q = 0.7, hp = 500 } = {}) {
+    const r = ready(); if (!r) return; const { c, b } = r, t0 = c.currentTime + t;
+    const s = c.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = q; bp.frequency.setValueAtTime(from, t0); bp.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    const h = c.createBiquadFilter(); h.type = 'highpass'; h.frequency.value = hp;
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(gain, t0 + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    s.connect(bp); bp.connect(h); h.connect(g); g.connect(b.master); s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.03);
+  }
+  return {
+    // card slid across felt: soft swish + a muted thump
+    deal(t = 0) { swish(t, 0.11, { gain: 0.22, from: jit(1200, .15), to: jit(2800, .15), q: 0.6, hp: 400 }); click(jit(150, .1), t + 0.07, 0.06, 0.12); },
+    // card turned over: short papery flick
+    flip(t = 0) { swish(t, 0.06, { gain: 0.2, from: 2600, to: 1500, q: 0.9, hp: 900 }); click(jit(300, .06), t + 0.03, 0.05, 0.08); },
+    // clay chips: two quick damped clicks
+    chip() { const f = jit(2100, .08); click(f, 0, 0.035, 0.11); click(f * 0.72, 0.012, 0.05, 0.1); click(jit(f * 1.1, .05), 0.055, 0.03, 0.08); },
+    // your turn: soft two-note bell
+    turn() { note(698.5, 0, 0.55, { gain: 0.055, overtone: 2, send: 0.6 }); note(880, 0.11, 0.7, { gain: 0.055, overtone: 2, send: 0.6 }); },
+    // win: warm rising arpeggio with a little shimmer
+    win() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, i * 0.09, 0.9, { type: 'triangle', gain: 0.06, attack: 0.02, overtone: 2, send: 0.7 })); note(2093, 0.36, 0.6, { gain: 0.02, send: 0.9 }); },
+    // loss: two gentle falling notes, no buzz
+    lose() { note(392, 0, 0.6, { gain: 0.07, attack: 0.03, send: 0.5 }); note(311.13, 0.16, 0.9, { gain: 0.07, attack: 0.03, send: 0.5 }); },
+    // push: neutral double blip
+    push() { note(493.88, 0, 0.35, { gain: 0.05, send: 0.5 }); note(493.88, 0.16, 0.4, { gain: 0.05, send: 0.5 }); },
+  };
+}
+const sfx = (() => {
+  let ctx = null, muted = LS.get('bj.mute') === '1';
+  function ensure() {
+    if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ctx = new AC(); }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
-  function tone(freq, t, dur, { type = 'sine', gain = 0.15, slide = 0 } = {}) {
-    const c = muted ? null : ensure(); if (!c) return;
-    const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + t;
-    o.type = type; o.frequency.setValueAtTime(freq, t0);
-    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.03);
-  }
-  function noise(t, dur, { gain = 0.2, freq = 2500 } = {}) {
-    const c = muted ? null : ensure(); if (!c) return;
-    const n = (c.sampleRate * dur) | 0, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
-    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
-    s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; g.gain.value = gain;
-    s.connect(f); f.connect(g); g.connect(master); s.start(c.currentTime + t);
-  }
+  const inner = createSfx(() => ensure(), () => muted);
   return {
+    ...inner,
     unlock: ensure,
     get muted() { return muted; },
     setMuted(m) { muted = m; LS.set('bj.mute', m ? '1' : '0'); },
-    deal(t = 0) { noise(t, 0.09, { gain: 0.28, freq: 3200 }); },
-    flip(t = 0) { noise(t, 0.07, { gain: 0.2, freq: 1800 }); tone(520, t, 0.05, { type: 'triangle', gain: 0.05 }); },
-    chip() { tone(1800, 0, 0.04, { type: 'square', gain: 0.035 }); tone(1300, 0.035, 0.05, { type: 'square', gain: 0.035 }); },
-    turn() { tone(660, 0, 0.12, { gain: 0.1 }); tone(880, 0.1, 0.16, { gain: 0.1 }); },
-    win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.08, 0.24, { type: 'triangle', gain: 0.12 })); },
-    lose() { tone(220, 0, 0.4, { type: 'sawtooth', gain: 0.07, slide: -120 }); },
-    push() { tone(440, 0, 0.15, { gain: 0.08 }); tone(440, 0.17, 0.15, { gain: 0.08 }); },
   };
 })();
 ['pointerdown', 'keydown'].forEach((e) => addEventListener(e, () => sfx.unlock(), { once: true, passive: true }));
