@@ -62,7 +62,7 @@ input:disabled,select:disabled{opacity:.55}
 
 /* ---------- layout ---------- */
 .app{height:100dvh;display:grid;grid-template-columns:268px minmax(0,1fr) 336px;grid-template-rows:56px minmax(0,1fr);grid-template-areas:"top top top" "side main chat";gap:12px;padding:0 12px 12px}
-.topbar{grid-area:top;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);margin:0 -12px;padding:0 16px;background:rgba(23,24,26,.85);backdrop-filter:blur(8px)}
+.topbar{grid-area:top;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);margin:0 -12px;padding:0 16px;background:rgba(23,24,26,.85);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .me{display:flex;align-items:center;gap:8px;font-weight:700}
 .online{color:var(--dim);font-size:12px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-height:0}
@@ -118,7 +118,7 @@ h3{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute
 .seats{position:relative;z-index:2;display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;margin-top:auto}
 
 /* seat */
-.seat{--c:var(--s0);position:relative;border-radius:18px;padding:10px 12px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(3px);display:flex;flex-direction:column;gap:8px;min-width:0;transition:box-shadow .25s,border-color .25s,background .25s}
+.seat{--c:var(--s0);position:relative;border-radius:18px;padding:10px 12px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;flex-direction:column;gap:8px;min-width:0;transition:box-shadow .25s,border-color .25s,background .25s}
 .seat[data-seat="1"]{--c:var(--s1)}
 .seat.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 36px -6px var(--c);background:rgba(0,0,0,.42)}
 .seat.me .name::after{content:' (you)';color:var(--dim);font-weight:500}
@@ -204,7 +204,7 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
 .forfeit:hover{opacity:1;color:#fca5a5}
 
 /* ---------- overlays ---------- */
-.overlay{position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.62);backdrop-filter:blur(5px);overflow:auto}
+.overlay{position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);overflow:auto}
 .overlay.on{display:flex;animation:fade .25s}
 @keyframes fade{from{opacity:0}}
 .lobby-card,.over-card{width:min(640px,100%);max-height:100%;overflow:auto;padding:22px;border-radius:20px;background:var(--panel);border:1px solid var(--line2);box-shadow:0 30px 80px rgba(0,0,0,.6);margin:auto}
@@ -315,7 +315,7 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
 @media (max-width:1180px){
   .tablebox.setup .felt{min-height:0;padding:0}
   .tablebox.setup .dealer-zone,.tablebox.setup .felt-text,.tablebox.setup .banner,.tablebox.setup .seats,.tablebox.setup .shoe{display:none}
-  .tablebox.setup .overlay.on{position:relative;inset:auto;background:none;backdrop-filter:none;padding:10px}
+  .tablebox.setup .overlay.on{position:relative;inset:auto;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:10px}
 }
 
 /* collapsible chat */
@@ -440,7 +440,7 @@ h3 .ic{font-size:14px;color:var(--dim)}
 #meBtn{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:4px 8px;border-radius:999px}
 #meBtn:hover{background:rgba(255,255,255,.07)}
 #meBtn .pen{opacity:.45;font-size:12px}
-.modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.6);backdrop-filter:blur(5px)}
+.modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
 .modal.on{display:flex;animation:fade .2s}
 .modal-card{width:min(420px,100%);max-height:100%;overflow:auto;padding:20px;border-radius:18px;background:var(--panel);border:1px solid var(--line2);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .modal-card h2{font-size:17px;display:flex;align-items:center;gap:8px;margin-bottom:14px}
@@ -469,3 +469,21 @@ h3 .ic{font-size:14px;color:var(--dim)}
 .modal-card{width:min(460px,100%)}
 .icons.chars .ib.sel{background:var(--pfc,var(--panel2));border-color:#fff;box-shadow:0 0 0 2px var(--panel)}
 .lseat .row{flex-wrap:wrap;justify-content:center;max-width:100%}.lseat .btn{max-width:100%}
+
+/* ---- small-screen / Safari hardening ---- */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@supports (overflow:clip){.app{overflow-x:clip}} /* safety net only; never creates a scroll container */
+button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#roomName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:1180px){
+  .topbar>*{min-width:0}
+  .pill{flex:0 1 auto;min-width:0;max-width:46vw}
+  #logoutBtn,#soundBtn,#meBtn,.logo{flex:none}
+  input,select,textarea{font-size:16px} /* stops iOS Safari zooming in on focus */
+}
+@media (max-width:520px){
+  .topbar{gap:6px;padding:0 8px}
+  #logoutBtn .lbl{display:none}
+  #logoutBtn{padding:0;width:36px;justify-content:center}
+}
+@media (max-width:400px){.logo.sm span{display:none}.pill{max-width:50vw}}

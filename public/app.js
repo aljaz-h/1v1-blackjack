@@ -5,6 +5,12 @@
    helpers
    ===================================================================== */
 const $ = (s, r = document) => r.querySelector(s);
+// Safari throws on storage access when cookies are blocked / in some private modes: never let that break the app.
+const LS = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
+  del(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
+};
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fmt = (n) => Number(n).toLocaleString('en-US');
@@ -29,7 +35,7 @@ function setAvatar(el, name, seat) {
   el.setAttribute('style', styleFor(name, seat));
   el.innerHTML = avatarInner(name);
 }
-function loadProf() { try { return JSON.parse(localStorage.getItem('bj.prof') || 'null'); } catch { return null; } }
+function loadProf() { try { return JSON.parse(LS.get('bj.prof') || 'null'); } catch { return null; } }
 const chipClass = (n) => 'k' + ([...DENOMS].reverse().find((d) => d <= n) || 1);
 
 function cardValue(c) { const r = c.slice(0, -1); return r === 'A' ? 11 : 'KQJ'.includes(r) || r === '10' ? 10 : +r; }
@@ -45,7 +51,7 @@ const isRed = (c) => c && (c.endsWith('H') || c.endsWith('D'));
    sound (all synthesised, no assets)
    ===================================================================== */
 const sfx = (() => {
-  let ctx = null, master = null, muted = localStorage.getItem('bj.mute') === '1';
+  let ctx = null, master = null, muted = LS.get('bj.mute') === '1';
   function ensure() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -74,7 +80,7 @@ const sfx = (() => {
   return {
     unlock: ensure,
     get muted() { return muted; },
-    setMuted(m) { muted = m; localStorage.setItem('bj.mute', m ? '1' : '0'); },
+    setMuted(m) { muted = m; LS.set('bj.mute', m ? '1' : '0'); },
     deal(t = 0) { noise(t, 0.09, { gain: 0.28, freq: 3200 }); },
     flip(t = 0) { noise(t, 0.07, { gain: 0.2, freq: 1800 }); tone(520, t, 0.05, { type: 'triangle', gain: 0.05 }); },
     chip() { tone(1800, 0, 0.04, { type: 'square', gain: 0.035 }); tone(1300, 0.035, 0.05, { type: 'square', gain: 0.035 }); },
@@ -113,9 +119,9 @@ function countTo(el, to) {
    state + network
    ===================================================================== */
 const S = {
-  token: localStorage.getItem('bj.token') || '',
-  id: localStorage.getItem('bj.id') || '',
-  name: localStorage.getItem('bj.name') || '',
+  token: LS.get('bj.token') || '',
+  id: LS.get('bj.id') || '',
+  name: LS.get('bj.name') || '',
   room: 'main',
   view: null, skew: 0, gen: 0, ac: null, conn: 'off',
   instant: true, pending: 0, betRound: -1, sig: {},
@@ -213,7 +219,7 @@ function showLogin(msg) {
   appEl.classList.add('hidden'); loginEl.classList.remove('hidden');
   $('#loginErr').textContent = msg || '';
   $('#inName').value = S.name || '';
-  $('#inRoom').value = new URLSearchParams(location.search).get('room') || localStorage.getItem('bj.room') || '';
+  $('#inRoom').value = new URLSearchParams(location.search).get('room') || LS.get('bj.room') || '';
   $('#inPass').value = '';
   (S.name ? $('#inPass') : $('#inName')).focus();
 }
@@ -227,7 +233,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     const r = await post('/api/login', { name: $('#inName').value, password: $('#inPass').value, id: S.id });
     S.token = r.token; S.id = r.id; S.name = r.name;
     S.room = ($('#inRoom').value || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
-    localStorage.setItem('bj.token', S.token); localStorage.setItem('bj.id', S.id); localStorage.setItem('bj.name', S.name); localStorage.setItem('bj.room', S.room === 'main' ? '' : S.room);
+    LS.set('bj.token', S.token); LS.set('bj.id', S.id); LS.set('bj.name', S.name); LS.set('bj.room', S.room === 'main' ? '' : S.room);
     sfx.unlock();
     await enter();
   } catch (err) {
@@ -251,7 +257,7 @@ async function enter() {
     streamLoop(S.gen);
     const sp = loadProf(); if (sp) act('profile', sp);
   } catch (e) {
-    if (e.status === 401) { S.token = ''; localStorage.removeItem('bj.token'); }
+    if (e.status === 401) { S.token = ''; LS.del('bj.token'); }
     showLogin(e.status === 401 ? '' : e.message);
     throw e;
   }
@@ -260,7 +266,7 @@ async function enter() {
 async function logout(msg) {
   S.gen++;
   if (S.ac) S.ac.abort();
-  S.token = ''; localStorage.removeItem('bj.token');
+  S.token = ''; LS.del('bj.token');
   S.view = null; setConn('off');
   showLogin(msg);
 }
@@ -663,7 +669,7 @@ $('#profile').addEventListener('click', (e) => {
   else if (e.target.closest('#pfReset')) { PF.color = null; PF.icon = null; }
   else if (e.target.closest('#pfSave')) {
     const val = { color: PF.color, icon: PF.icon };
-    localStorage.setItem('bj.prof', JSON.stringify(val));
+    LS.set('bj.prof', JSON.stringify(val));
     $('#profile').classList.remove('on');
     act('profile', val);
     return;
@@ -810,12 +816,12 @@ const desktop = () => matchMedia('(min-width:1181px)').matches;
 function renderUnread() { const u = $('#unread'); u.textContent = S.unread > 99 ? '99+' : S.unread || ''; u.classList.toggle('on', S.unread > 0); }
 function setChat(collapsed) {
   document.body.classList.toggle('chat-collapsed', collapsed);
-  try { localStorage.setItem('bj.chatc', collapsed ? '1' : ''); } catch { /* ignore */ }
+  try { LS.set('bj.chatc', collapsed ? '1' : ''); } catch { /* ignore */ }
   if (!collapsed) { S.unread = 0; renderUnread(); const m = $('#msgs'); m.scrollTop = m.scrollHeight; }
 }
 $('#chatToggle').addEventListener('click', () => setChat(true));
 $('#chatRail').addEventListener('click', () => { setChat(false); $('#chatInput').focus(); });
-if (localStorage.getItem('bj.chatc') === '1') document.body.classList.add('chat-collapsed');
+if (LS.get('bj.chatc') === '1') document.body.classList.add('chat-collapsed');
 $('#chatForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const i = $('#chatInput'), t = i.value.trim();
@@ -918,7 +924,7 @@ hydrateIcons();
 soundIcon();
 (async () => {
   const q = new URLSearchParams(location.search).get('room');
-  S.room = (q || localStorage.getItem('bj.room') || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
+  S.room = (q || LS.get('bj.room') || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
   if (S.token) { try { await enter(); return; } catch { /* fall through to login */ } }
   showLogin('');
 })();
