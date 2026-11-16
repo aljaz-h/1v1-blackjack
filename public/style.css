@@ -628,7 +628,7 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 .arc-dealer{position:absolute;left:50%;top:10px;transform:translateX(-50%);font:800 11px var(--font);letter-spacing:.22em;color:rgba(255,255,255,.6);padding:5px 14px;border-radius:99px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);white-space:nowrap}
 .lobby-seats.arc .lseat{position:absolute;left:var(--x);top:var(--y);transform:translateX(-50%);width:108px;min-height:0;padding:8px 6px;gap:5px;font-size:13px}
 .lobby-seats.arc .lseat .avatar{width:30px;height:30px}.lobby-seats.arc .lseat .btn.sm{padding:5px 9px;font-size:12px}.lobby-seats.arc .lseat b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lobby-card:has(.lobby-seats.arc:not(.hidden)){width:min(740px,100%)}
+.lobby-card:has(.lobby-seats.arc:not(.hidden)){width:100%;max-width:none}
 @media (max-width:640px){
   .lobby-seats.arc[data-n]{display:grid;height:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .lobby-seats.arc::before{display:none}
