@@ -259,3 +259,19 @@ test('system events carry a kind and data for rich rendering', () => {
   assert.strictEqual(typeof round.d.p[1].net, 'number');
   assert.ok(round.x.startsWith('Round 1:'));
 });
+
+test('avatar profiles: validation, view data and same-color fallback', () => {
+  const st = E.newRoom('p', now0);
+  for (const u of [A, B]) E.applyAction(st, u, { type: 'join' }, now0);
+  E.applyAction(st, A, { type: 'sit', seat: 0 }, now0);
+  E.applyAction(st, B, { type: 'sit', seat: 1 }, now0);
+  E.applyAction(st, A, { type: 'profile', color: '#FF0000', icon: 'crown' }, now0);
+  assert.throws(() => E.applyAction(st, A, { type: 'profile', color: 'red' }, now0), /color/i);
+  assert.throws(() => E.applyAction(st, A, { type: 'profile', icon: '<img>' }, now0), /icon/i);
+  E.applyAction(st, B, { type: 'profile', color: '#ff0000', icon: null }, now0);
+  const v = E.buildView(st, A.id, now0);
+  assert.strictEqual(v.seats[0].color, '#ff0000');
+  assert.strictEqual(v.seats[0].icon, 'crown');
+  assert.strictEqual(v.seats[1].color, null); // clashes with seat 1 -> default
+  assert.strictEqual(v.seats[1].icon, null);
+});

@@ -14,8 +14,20 @@ const SYM = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const DENOMS = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000, 25000, 100000];
 const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const seatColor = (i) => (i === 0 ? 'var(--s0)' : i === 1 ? 'var(--s1)' : '');
-const avatar = (name, seat, cls = '') =>
-  `<span class="avatar ${cls}" style="--c:${seat >= 0 ? seatColor(seat) : `hsl(${hue(name)} 80% 70%)`}">${esc((name[0] || '?').toUpperCase())}</span>`;
+/* Player profiles (custom color + icon), keyed by name; rebuilt from every view. */
+const PROF = {};
+const COLORS = ['#38bdf8', '#e879f9', '#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80', '#2dd4bf', '#818cf8', '#a78bfa', '#f472b6', '#e5e7eb'];
+const ICONS = ['crown', 'skull', 'flame', 'ghost', 'rocket', 'zap', 'gem', 'cat', 'dog', 'bot', 'clover', 'star', 'bird', 'fish', 'spade', 'dices'];
+const fgFor = (c) => { const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c || ''); if (!m) return '#111214'; const l = (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) / 255; return l > 0.55 ? '#111214' : '#ffffff'; };
+const colorOf = (name, seat) => (PROF[name] && PROF[name].color) || (seat >= 0 ? seatColor(seat) : `hsl(${hue(name)} 80% 70%)`);
+const avatarInner = (name) => (PROF[name] && PROF[name].icon ? ic(PROF[name].icon) : esc((name[0] || '?').toUpperCase()));
+const styleFor = (name, seat) => { const c = colorOf(name, seat); return `--c:${c};--fg:${fgFor(c)}`; };
+const avatar = (name, seat, cls = '') => `<span class="avatar ${cls}" style="${styleFor(name, seat)}">${avatarInner(name)}</span>`;
+function setAvatar(el, name, seat) {
+  el.setAttribute('style', styleFor(name, seat));
+  el.innerHTML = avatarInner(name);
+}
+function loadProf() { try { return JSON.parse(localStorage.getItem('bj.prof') || 'null'); } catch { return null; } }
 const chipClass = (n) => 'k' + ([...DENOMS].reverse().find((d) => d <= n) || 1);
 
 function cardValue(c) { const r = c.slice(0, -1); return r === 'A' ? 11 : 'KQJ'.includes(r) || r === '10' ? 10 : +r; }
@@ -229,12 +241,13 @@ async function enter() {
   try {
     const r = await post('/api/act', { room: S.room, type: 'join' });
     loginEl.classList.add('hidden'); appEl.classList.remove('hidden');
-    $('#meName').textContent = S.name; $('#meAvatar').outerHTML = avatar(S.name, -1, 'sm').replace('class="avatar', 'id="meAvatar" class="avatar');
+    $('#meName').textContent = S.name; refreshMe();
     $('#roomName').textContent = S.room;
     soundIcon();
     history.replaceState(null, '', S.room === 'main' ? location.pathname : `?room=${S.room}`);
     applyView(r.view);
     streamLoop(S.gen);
+    const sp = loadProf(); if (sp) act('profile', sp);
   } catch (e) {
     if (e.status === 401) { S.token = ''; localStorage.removeItem('bj.token'); }
     showLogin(e.status === 401 ? '' : e.message);
@@ -363,12 +376,13 @@ function renderSeat(i, v, prev) {
   node.classList.toggle('me', v.you.seat === i);
   if (!s) {
     node.querySelector('.emptytxt').textContent = v.phase === 'lobby' || v.phase === 'over' ? `Seat ${i + 1} is open` : 'Empty seat';
+    node.style.removeProperty('--c');
     node.classList.remove('active', 'multi');
     node.querySelector('.hands').innerHTML = '';
     return;
   }
-  const av = node.querySelector('.avatar');
-  av.textContent = (s.name[0] || '?').toUpperCase();
+  node.style.setProperty('--c', colorOf(s.name, i));
+  setAvatar(node.querySelector('.avatar'), s.name, i);
   node.querySelector('.name').textContent = s.name;
   countTo(node.querySelector('.bal b'), s.balance);
   node.querySelector('.badges').innerHTML =
@@ -590,9 +604,9 @@ function renderLobby(v) {
       const s = v.seats[i];
       if (!s) return `<div class="lseat" data-s="${i}"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1} is open</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${ic('armchair')}${seated ? 'Move here' : 'Take seat ' + (i + 1)}</button></div>`;
       const mine = v.you.seat === i;
-      return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
+      return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}" style="--c:${colorOf(s.name, i)}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
         <div class="st">${!s.online ? 'Offline' : s.ready ? 'Ready ✓' : 'Not ready'}</div>
-        ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div>` : ''}</div>`;
+        ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div><button class="btn ghost sm" data-act="profile">${ic('palette')}Avatar</button>` : ''}</div>`;
     }).join('');
   }
   const both = v.seats[0] && v.seats[1];
@@ -604,7 +618,48 @@ $('#lobbySeats').addEventListener('click', (e) => {
   if (b.dataset.act === 'sit') act('sit', { seat: +b.dataset.seat });
   else if (b.dataset.act === 'ready') act('ready', { value: b.dataset.val === '1' });
   else if (b.dataset.act === 'stand') act('stand');
+  else if (b.dataset.act === 'profile') openProfile();
 });
+
+/* ---- avatar editor ---- */
+const PF = { color: null, icon: null };
+function openProfile() {
+  const cur = PROF[S.name] || {};
+  PF.color = cur.color || null; PF.icon = cur.icon || null;
+  $('#pfColors').innerHTML = COLORS.map((c) => `<button type="button" class="sw" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('') +
+    `<label class="sw custom" title="Custom color">${ic('plus')}<input type="color" id="pfCustom" value="${PF.color || '#38bdf8'}"></label>`;
+  $('#pfIcons').innerHTML = `<button type="button" class="ib" data-i="">${esc((S.name[0] || '?').toUpperCase())}</button>` + ICONS.map((n) => `<button type="button" class="ib" data-i="${n}">${ic(n)}</button>`).join('');
+  $('#profile').classList.add('on');
+  paintProfile();
+}
+function paintProfile() {
+  const c = PF.color || colorOf(S.name, S.view && S.view.you.seat);
+  $('#pfPrev').setAttribute('style', `--c:${c};--fg:${fgFor(c)}`);
+  $('#pfPrev').innerHTML = PF.icon ? ic(PF.icon) : esc((S.name[0] || '?').toUpperCase());
+  $$('#pfColors .sw[data-c]').forEach((b) => b.classList.toggle('sel', b.dataset.c === PF.color));
+  $$('#pfIcons .ib').forEach((b) => b.classList.toggle('sel', (b.dataset.i || null) === PF.icon));
+  const v = S.view, me = v ? v.you.seat : -1, opp = me >= 0 ? v.seats[1 - me] : null;
+  const clash = opp && PF.color && PROF[opp.name] && PROF[opp.name].color === PF.color;
+  $('#pfWarn').textContent = clash ? 'Your opponent already uses this color; the second seat will fall back to its default.' : '';
+}
+$('#profile').addEventListener('click', (e) => {
+  if (e.target === $('#profile') || e.target.closest('#pfCancel')) { $('#profile').classList.remove('on'); return; }
+  const sw = e.target.closest('.sw[data-c]'), ib = e.target.closest('.ib');
+  if (sw) PF.color = sw.dataset.c;
+  else if (ib) PF.icon = ib.dataset.i || null;
+  else if (e.target.closest('#pfReset')) { PF.color = null; PF.icon = null; }
+  else if (e.target.closest('#pfSave')) {
+    const val = { color: PF.color, icon: PF.icon };
+    localStorage.setItem('bj.prof', JSON.stringify(val));
+    $('#profile').classList.remove('on');
+    act('profile', val);
+    return;
+  } else return;
+  paintProfile();
+});
+$('#profile').addEventListener('input', (e) => { if (e.target.id === 'pfCustom') { PF.color = e.target.value; paintProfile(); } });
+$('#meBtn').addEventListener('click', openProfile);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#profile').classList.remove('on'); });
 
 function renderOver(v) {
   const on = v.phase === 'over';
@@ -652,7 +707,7 @@ function renderSide(v) {
   $('#rules').innerHTML = [`${st.decks} deck${st.decks > 1 ? 's' : ''}`, `BJ ${st.payout === 1.5 ? '3:2' : st.payout === 1.2 ? '6:5' : '1:1'}`, st.h17 ? 'H17' : 'S17', `Bet ${fmt(st.minBet)}–${fmt(st.maxBet)}`, st.maxRounds ? `${st.maxRounds} rounds` : 'Until broke'].map((t) => `<span>${t}</span>`).join('');
   $('#ftPay').textContent = `BLACKJACK PAYS ${st.payout === 1.5 ? '3 TO 2' : st.payout === 1.2 ? '6 TO 5' : '1 TO 1'}`;
   $('#ftRule').textContent = st.h17 ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
-  $('#duel').innerHTML = [0, 1].map((i) => { const s = v.seats[i]; return `<div class="d"><small>${s ? esc(s.name) : 'Seat ' + (i + 1)}</small><b style="color:${seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ</small></div>`; }).join('');
+  $('#duel').innerHTML = [0, 1].map((i) => { const s = v.seats[i]; return `<div class="d"><small>${s ? esc(s.name) : 'Seat ' + (i + 1)}</small><b style="color:${s ? colorOf(s.name, i) : seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ</small></div>`; }).join('');
   drawSpark(v);
 }
 function drawSpark(v) {
@@ -660,7 +715,7 @@ function drawSpark(v) {
   if (ser.length < 2) { svg.innerHTML = '<text x="120" y="40" fill="#6e737b" font-size="11" text-anchor="middle">Balance chart appears after round 1</text>'; return; }
   const all = ser.flat(), lo = Math.min(...all), hi = Math.max(...all), span = Math.max(1, hi - lo);
   const pt = (i, val) => `${(i / (ser.length - 1)) * 228 + 6},${62 - ((val - lo) / span) * 54}`;
-  svg.innerHTML = [0, 1].map((s) => `<polyline fill="none" stroke="${s ? '#e879f9' : '#38bdf8'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${ser.map((r, i) => pt(i, r[s])).join(' ')}"/>`).join('');
+  svg.innerHTML = [0, 1].map((s) => `<polyline fill="none" stroke="${v.seats[s] ? colorOf(v.seats[s].name, s) : (s ? '#e879f9' : '#38bdf8')}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${ser.map((r, i) => pt(i, r[s])).join(' ')}"/>`).join('');
 }
 
 const mc = (c) => `<span class="mc${isRed(c) ? ' r' : ''}">${c.slice(0, -1)}${SYM[c.slice(-1)]}</span>`;
@@ -760,7 +815,22 @@ $$('.emotes button').forEach((b) => b.addEventListener('click', () => act('chat'
 /* =====================================================================
    main render + sound/transition triggers
    ===================================================================== */
+function syncProfiles(v) {
+  const next = {};
+  for (const m of v.members) if (m.color || m.icon) next[m.name] = { color: m.color, icon: m.icon };
+  for (const x of v.seats) if (x) next[x.name] = { color: x.color, icon: x.icon };
+  const sig = JSON.stringify(next);
+  if (sig === S.profSig) return;
+  S.profSig = sig;
+  for (const k of Object.keys(PROF)) delete PROF[k];
+  Object.assign(PROF, next);
+  S.sig = {}; // force avatar-bearing panels to redraw
+  refreshMe();
+}
+function refreshMe() { const el = $('#meAvatar'); if (el) setAvatar(el, S.name, -1); }
+
 function render(v, prev) {
+  syncProfiles(v);
   $('#roomName').textContent = v.room;
   // transitions
   if (prev && !S.instant) {

@@ -8,7 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const SETS = {
-  lucide: { pkg: '@iconify-json/lucide', prefix: '', icons: ['volume-2', 'volume-x', 'message-circle', 'chevrons-right', 'trophy', 'handshake', 'user-plus', 'armchair', 'log-out', 'swords', 'shuffle', 'timer', 'flag', 'wifi-off', 'plus', 'hand', 'chevrons-up', 'split', 'coins', 'arrow-right', 'check', 'x', 'users', 'eye', 'history', 'keyboard', 'copy', 'trending-up', 'trending-down', 'equal', 'crown', 'spade', 'send', 'triangle-alert', 'info', 'wifi', 'layers', 'clock', 'user-minus', 'play', 'skull', 'dices'] },
+  lucide: { pkg: '@iconify-json/lucide', prefix: '', icons: ['volume-2', 'volume-x', 'message-circle', 'chevrons-right', 'trophy', 'handshake', 'user-plus', 'armchair', 'log-out', 'swords', 'shuffle', 'timer', 'flag', 'wifi-off', 'plus', 'hand', 'chevrons-up', 'split', 'coins', 'arrow-right', 'check', 'x', 'users', 'eye', 'history', 'keyboard', 'copy', 'trending-up', 'trending-down', 'equal', 'crown', 'spade', 'send', 'triangle-alert', 'info', 'wifi', 'layers', 'clock', 'user-minus', 'play', 'skull', 'dices', 'flame', 'ghost', 'rocket', 'zap', 'gem', 'cat', 'dog', 'bot', 'clover', 'star', 'bird', 'fish', 'palette', 'pencil'] },
   'line-md': { pkg: '@iconify-json/line-md', prefix: 'lm-', icons: ['confirm-circle', 'alert-circle-loop', 'loading-loop', 'check-all', 'close-circle', 'bell-loop'] }, // animated
   'svg-spinners': { pkg: '@iconify-json/svg-spinners', prefix: 'sp-', icons: ['180-ring-with-bg', '3-dots-bounce', '3-dots-fade', 'bars-scale-middle', 'pulse-3', 'clock'] }, // animated
 };
