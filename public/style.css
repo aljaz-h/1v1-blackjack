@@ -334,3 +334,44 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
   body.chat-collapsed .chat-rail .lbl{writing-mode:vertical-rl;letter-spacing:.3em;font-size:11px;font-weight:800}
 }
 @media (max-width:1180px){#chatToggle{display:none}}
+
+/* =====================================================================
+   glass layer (plain CSS, static surfaces only; table felt stays flat)
+   ===================================================================== */
+:root{--glass:rgba(34,36,40,.5);--glass-strong:rgba(34,36,40,.68);--glass-line:rgba(255,255,255,.1);--glass-hi:inset 0 1px 0 rgba(255,255,255,.07)}
+/* two still, muted colour blobs so the blur has something to refract */
+body::before,body::after{content:'';position:fixed;z-index:-1;border-radius:50%;filter:blur(110px);pointer-events:none}
+body::before{width:560px;height:560px;left:-140px;top:8%;background:#38bdf8;opacity:.17}
+body::after{width:600px;height:600px;right:-160px;bottom:-12%;background:#e879f9;opacity:.14}
+
+.topbar{background:rgba(23,24,26,.45);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);border-bottom-color:var(--glass-line)}
+.panel,.dock,.mtabs{background:var(--glass);border:1px solid var(--glass-line);box-shadow:var(--glass-hi),0 10px 34px rgba(0,0,0,.28);backdrop-filter:blur(18px) saturate(1.35);-webkit-backdrop-filter:blur(18px) saturate(1.35)}
+.login-card,.lobby-card,.over-card{background:var(--glass-strong);border:1px solid var(--glass-line);box-shadow:var(--glass-hi),0 30px 80px rgba(0,0,0,.5);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4)}
+.toast{background:var(--glass-strong);border-color:var(--glass-line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.toast.bad{background:rgba(120,30,40,.55)}
+.overlay{background:rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* login: freeze the background cards so nothing repaints under the glass */
+.login-bg .fc{animation:none;opacity:.12}
+
+/* inner controls: faint translucent fills, no blur of their own */
+.btn,.pill,.icon-btn,.sseat,.duel .d,.over-stats .d,.lseat,.speclist span,.emotes button,.presets button,.spark{background:rgba(255,255,255,.06);border-color:var(--glass-line)}
+.btn.primary{background:#8b5cf6}
+.btn.hit{background:#38bdf8}.btn.stand{background:#fb7185}.btn.dbl{background:#fbbf24}.btn.split{background:#a78bfa}
+.btn.ghost{background:transparent}
+.mtabs button.on{background:rgba(255,255,255,.1)}
+input,select{background:rgba(0,0,0,.28);border-color:var(--glass-line)}
+.lseat.ready{background:rgba(34,197,94,.08)}
+.over-stats .d.w{background:rgba(250,204,21,.07)}
+.sseat.empty{background:transparent}
+.rrow:nth-child(odd){background:rgba(255,255,255,.035)}
+.msgs{scrollbar-color:#4a4e55 transparent}
+
+/* graceful fallbacks */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--glass:#202225;--glass-strong:#25282c}
+}
+@media (prefers-reduced-transparency:reduce){
+  :root{--glass:#202225;--glass-strong:#25282c}
+  .panel,.dock,.mtabs,.topbar,.login-card,.lobby-card,.over-card,.toast,.overlay{backdrop-filter:none;-webkit-backdrop-filter:none}
+  body::before,body::after{display:none}
+}
