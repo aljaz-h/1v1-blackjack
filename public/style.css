@@ -635,3 +635,40 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
   .arc-dealer{position:static;transform:none;grid-column:1/-1;text-align:center}
   .lobby-seats.arc .lseat{position:static;transform:none;width:auto}
 }
+
+/* ---------- curved blackjack table (wide felt) ---------- */
+.felt{container-type:inline-size}
+.tshape,.arcs{display:none}
+@container (min-width:560px){
+  .felt{background:radial-gradient(ellipse at 50% 20%,#25282c,#14161a);padding:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 24px 60px rgba(0,0,0,.4)}
+  .felt::before,.felt::after{display:none}
+  .tshape{display:block;position:absolute;left:1.5%;right:1.5%;top:3%;bottom:2.5%;border:15px solid transparent;border-radius:26px 26px 50% 50%/26px 26px 68% 68%;background:radial-gradient(ellipse at 50% 30%,#2f5f52 0%,#1f3b35 52%,#152a25 100%) padding-box,linear-gradient(180deg,#6b7078,#2b2e33 60%,#1c1e22) border-box;box-shadow:inset 0 14px 60px rgba(0,0,0,.45),inset 0 0 0 2px rgba(251,191,36,.22),0 18px 40px rgba(0,0,0,.55);z-index:0}
+  .tshape::before{content:'';position:absolute;inset:0;border-radius:inherit;background-image:radial-gradient(rgba(255,255,255,.035) 1px,transparent 1px);background-size:14px 14px}
+  .arcs{display:block;position:absolute;left:12%;width:76%;top:25%;z-index:1;pointer-events:none;overflow:visible}
+  .arcline{fill:none;stroke:rgba(251,191,36,.32);stroke-width:3}
+  .arc-t1{font:800 40px var(--font);letter-spacing:.14em;fill:rgba(251,191,36,.62)}
+  .arc-t2{font:700 25px var(--font);letter-spacing:.16em;fill:rgba(255,255,255,.42)}
+  .felt-text{display:none}
+  .dealer-zone{position:absolute;left:50%;top:6.5%;transform:translateX(-50%);z-index:2;min-height:0}
+  .banner{position:absolute;left:0;right:0;top:49%;margin:0;z-index:4}
+  .shoe{right:5%;top:2%;z-index:3}
+  .forfeit{left:5%;top:7%;z-index:6}
+  .seats{position:absolute;inset:0;display:block;margin:0;width:auto;z-index:3}
+  .seats .seat{position:absolute;left:var(--x);top:var(--y);transform:translateX(-50%);width:max-content;max-width:210px;padding:0;gap:6px;align-items:center;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-radius:18px;transition:filter .25s}
+  .seats .seat.empty{display:none}
+  .seats .seat-head{order:2;gap:8px;padding:4px 14px 4px 4px;background:rgba(10,12,14,.72);border:1px solid rgba(255,255,255,.14);border-radius:99px;transition:box-shadow .25s,border-color .25s}
+  .seats .seat-head .badges{display:none}
+  .seats .hands{order:1;min-height:calc(var(--cw)*1.42 + 34px);justify-content:center}
+  .seats .timer{order:3;width:90%}
+  .seats .betrow{top:0;bottom:auto;min-height:0;height:calc(var(--cw)*1.42)}
+  .seats .seat.active{background:radial-gradient(ellipse at 50% 40%,rgba(255,255,255,.1),transparent 70%);box-shadow:none}
+  .seats .seat.active .seat-head{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 28px -4px var(--c)}
+  .seats .float{top:15%}
+  .seats .name{font-size:13px}.seats .bal{font-size:13px}
+  .seats[data-m="2"]{--cwb:90px}.seats[data-m="3"]{--cwb:76px}.seats[data-m="4"]{--cwb:66px}.seats[data-m="5"]{--cwb:56px}.seats[data-m="6"]{--cwb:50px}
+  .seats .seat.out{opacity:.45}
+}
+@container (min-width:560px) and (max-width:760px){
+  .seats[data-m="2"]{--cwb:80px}.seats[data-m="3"]{--cwb:62px}.seats[data-m="4"]{--cwb:52px}.seats[data-m="5"]{--cwb:44px}.seats[data-m="6"]{--cwb:38px}
+  .seats .seat-head{padding-right:10px}.seats .who{max-width:76px}
+}

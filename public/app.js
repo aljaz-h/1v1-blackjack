@@ -906,8 +906,8 @@ function renderSide(v) {
   if (mode === 'tournament') rules.push(`Level ${lim.level + 1}`, `Blinds ×1.5 / ${st.blindEvery} rds`);
   rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' ? 'Until broke' : 'Until one left');
   $('#rules').innerHTML = rules.map((t) => (t.startsWith('<span') ? t : `<span>${t}</span>`)).join('');
-  $('#ftPay').textContent = mode === 'showdown' ? 'SHOWDOWN · BEST HAND TAKES THE POT' : `BLACKJACK PAYS ${st.payout === 1.5 ? '3 TO 2' : st.payout === 1.2 ? '6 TO 5' : '1 TO 1'}`;
-  $('#ftRule').textContent = mode === 'showdown' ? 'NO DEALER · NATURAL BLACKJACK BEATS 21' : st.h17 ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
+  $('#ftPay2').textContent = $('#ftPay').textContent = mode === 'showdown' ? 'SHOWDOWN · BEST HAND TAKES THE POT' : `BLACKJACK PAYS ${st.payout === 1.5 ? '3 TO 2' : st.payout === 1.2 ? '6 TO 5' : '1 TO 1'}`;
+  $('#ftRule2').textContent = $('#ftRule').textContent = mode === 'showdown' ? 'NO DEALER · NATURAL BLACKJACK BEATS 21' : st.h17 ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
   const seatedIdx = v.seats.map((x, i) => (x ? i : -1)).filter((i) => i >= 0);
   $('#duel').classList.toggle('cols3', seatedIdx.length > 4);
   $('#duel').innerHTML = (seatedIdx.length ? seatedIdx : [0, 1]).map((i) => { const x = v.seats[i]; return `<div class="d"><small>${x ? esc(x.name) : 'Seat ' + (i + 1)}</small><b style="color:${x ? colorOf(x.name, i) : seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ</small></div>`; }).join('');
@@ -1055,9 +1055,12 @@ function render(v, prev) {
   }
   renderDealer(v);
   const nSeated = v.seats.filter(Boolean).length;
-  const sEl = $('#seats'); sEl.dataset.n = nSeated; sEl.classList.toggle('dense', nSeated >= 3);
+  const sEl = $('#seats'); sEl.dataset.m = v.mode.max; sEl.dataset.n = nSeated; sEl.classList.toggle('dense', nSeated >= 3);
   $('#felt').classList.toggle('showdown', modeOf(v) === 'showdown');
   $('#tablebox').classList.toggle('tall', nSeated >= 5);
+  // seats keep the slot they chose on the curved table (wide screens); positions follow the mode's seat count
+  { const n = v.mode.max, sp = [1, 1, .55, .7, .85, 1][n] ?? 1;
+    for (let i = 0; i < NSEATS; i++) { const t = Math.PI * (i + .5) / n; seatNodes[i].style.setProperty('--x', (50 - 41 * sp * Math.cos(t)).toFixed(1) + '%'); seatNodes[i].style.setProperty('--y', (27 + 46 * Math.sin(t)).toFixed(1) + '%'); } }
   for (let i = 0; i < NSEATS; i++) renderSeat(i, v, prev);
   renderBanner(v);
   renderDock(v);
