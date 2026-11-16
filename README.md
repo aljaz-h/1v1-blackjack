@@ -17,7 +17,7 @@
 
 - 🪑 **Real table feel**: curved felt, arc seating, chip rack, shoe, flying chips and card flips.
 - 🎲 **Four modes**: Duel, Classic, Showdown and Tournament, plus a **Blitz** timer toggle.
-- 👑 **Host-run rooms**: the first in sets the rules, opens the table, everyone picks a seat.
+- 👑 **Host-run rooms**: the first in sets the rules, opens the table, everyone picks a seat, and the host can pause the match.
 - 🔐 **Zero accounts**: one master password, a display name and a room code.
 - 💬 **Chat, emotes, round history** and a live balance chart.
 - 🔊 **Soft synthesized sounds**, keyboard hotkeys, mobile friendly.

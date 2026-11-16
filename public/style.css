@@ -195,8 +195,8 @@ h3{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute
 .card .mid{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw)*.55);padding-top:calc(var(--cw)*.05)}
 .card .mid.face-l{font-size:calc(var(--cw)*.5);font-weight:900}
 .card .mid.face-l small{position:absolute;bottom:18%;font-size:.32em}
-.card.deal{animation:deal .42s cubic-bezier(.2,.9,.25,1) both;animation-delay:var(--d,0ms)}
-@keyframes deal{from{transform:translate(var(--fx,160px),var(--fy,-240px)) rotate(var(--fr,24deg)) scale(.55);opacity:0}15%{opacity:1}70%{transform:translate(calc(var(--fx,0px)*.08),calc(var(--fy,0px)*.08)) rotate(-2deg) scale(1.04)}to{transform:none;opacity:1}}
+.card.deal{animation:deal .62s cubic-bezier(.22,.8,.3,1) both;animation-delay:var(--d,0ms);z-index:5}
+@keyframes deal{0%{transform:translate(var(--fx,160px),var(--fy,-240px)) rotate(var(--fr,24deg)) scale(.5);opacity:0;filter:brightness(.8)}10%{opacity:1}55%{transform:translate(calc(var(--fx,0px)*.14),calc(var(--fy,0px)*.14 - 14px)) rotate(5deg) scale(1.08)}78%{transform:translate(0,3px) rotate(-1.6deg) scale(.98)}100%{transform:none;opacity:1;filter:none}}
 .card.lift{animation:lift .6s cubic-bezier(.3,.7,.3,1)}
 @keyframes lift{35%{transform:translateY(-16px) scale(1.14);filter:drop-shadow(0 14px 14px rgba(0,0,0,.5))}}
 
@@ -228,7 +228,8 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
 .wait-txt{color:var(--dim);font-weight:600;font-size:15px}
 .timer-big{width:140px;height:6px;background:var(--line);border-radius:6px;overflow:hidden}
 .timer-big i{display:block;height:100%;width:100%;background:var(--cyan);transform-origin:left;transition:transform .15s linear}
-.forfeit{position:absolute;left:14px;top:14px;z-index:4;font-size:10px;padding:3px 9px;opacity:.6}
+.felt-tools{position:absolute;left:14px;top:14px;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.forfeit{font-size:10px;padding:3px 9px;opacity:.6}
 .forfeit:hover{opacity:1;color:#fca5a5}
 
 /* ---------- overlays ---------- */
@@ -655,7 +656,7 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
   .chiprack .cs{position:relative;display:block;width:24px;height:calc(var(--n)*4px + 9px);flex:none;border-radius:0}
   .chiprack .cs::before{content:'';position:absolute;left:0;right:0;top:0;height:9px;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.9),inset 0 0 0 3px var(--c),inset 0 0 0 4px rgba(255,255,255,.55);z-index:2}
   .chiprack .cs::after{content:'';position:absolute;left:0;right:0;top:4px;bottom:0;border-radius:0 0 12px 12px/0 0 5px 5px;background:repeating-linear-gradient(to bottom,var(--c) 0 2.5px,rgba(255,255,255,.92) 2.5px 4px);filter:brightness(.92)}
-  .forfeit{left:5%;top:7%;z-index:6}
+  .felt-tools{left:5%;top:7%;z-index:6}
   .seats{position:absolute;inset:0;display:block;margin:0;width:auto;z-index:3}
   .seats .seat{position:absolute;left:var(--x);top:var(--y);transform:translateX(-50%);width:max-content;max-width:210px;padding:0;gap:6px;align-items:center;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-radius:18px;transition:filter .25s}
   .seats .seat.empty{display:none}
@@ -709,3 +710,11 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 @media (min-width:1181px){.chat .rounds.panel{padding-top:4px}.chat #msgs{padding-top:4px}}
 
 .lobby-mine{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:-4px 0 20px}.lobby-mine.hidden{display:none}
+
+.pause-ov{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(8,10,14,.62);backdrop-filter:blur(3px);border-radius:inherit;animation:pauseIn .25s ease both}
+.pause-ov.hidden{display:none}
+.pause-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 34px;border-radius:18px;background:rgba(24,24,27,.9);border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.5);text-align:center}
+.pause-card b{font-size:20px;letter-spacing:.04em}.pause-card small{color:var(--dim);margin-bottom:6px}
+.pause-ic{font-size:30px;color:var(--cyan,#38bdf8)}
+.dock.frozen{opacity:.45;pointer-events:none}
+@keyframes pauseIn{from{opacity:0}to{opacity:1}}

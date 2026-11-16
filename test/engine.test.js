@@ -511,3 +511,31 @@ test('all in: whole stack is allowed above the max bet, other oversize bets are 
   E.applyAction(st, uid(other), { type: 'bet', amount: 50 }, now0);
   assert.strictEqual(st.phase === 'playing' || st.phase === 'settled' || st.phase === 'dealer', true, 'round continues after an all-in');
 });
+
+test('host can pause: clocks freeze, actions are refused, resume shifts deadlines', () => {
+  const st = table({ blitz: true });
+  assert.strictEqual(st.phase, 'betting');
+  const left = st.timerAt - now0;
+  assert.throws(() => E.applyAction(st, B, { type: 'pause' }, now0 + 1000), /host|Host/);
+  E.applyAction(st, A, { type: 'pause' }, now0 + 1000);
+  assert.ok(st.paused);
+  assert.ok(E.buildView(st, A.id, now0 + 1000).paused);
+  // a long pause neither fires the bet timer nor forfeits anyone
+  E.tick(st, now0 + 10 * 60_000);
+  assert.strictEqual(st.phase, 'betting');
+  assert.throws(() => E.applyAction(st, A, { type: 'bet', amount: 50 }, now0 + 2000), /paused/i);
+  E.applyAction(st, A, { type: 'resume' }, now0 + 61_000);
+  assert.strictEqual(st.paused, null);
+  assert.strictEqual(st.timerAt - (now0 + 61_000), left - 1000); // time left at the moment of the pause
+  E.applyAction(st, A, { type: 'bet', amount: 50 }, now0 + 62_000);
+});
+
+test('pause is not allowed in the lobby and auto-resumes after 15 minutes', () => {
+  const lobby = newRoom('l', now0);
+  E.applyAction(lobby, A, { type: 'join' }, now0);
+  assert.throws(() => E.applyAction(lobby, A, { type: 'pause' }, now0), /pause/i);
+  const st = table();
+  E.applyAction(st, A, { type: 'pause' }, now0);
+  E.tick(st, now0 + 16 * 60_000);
+  assert.strictEqual(st.paused, null);
+});

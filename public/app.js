@@ -209,7 +209,7 @@ const S = {
   view: null, skew: 0, gen: 0, ac: null, conn: 'off',
   instant: true, pending: 0, betRound: -1, sig: {},
 };
-const serverNow = () => Date.now() + S.skew;
+const serverNow = () => (S.view && S.view.paused ? S.view.paused.at : Date.now() + S.skew);
 
 async function post(path, body) {
   const r = await fetch(path, {
@@ -423,6 +423,8 @@ $('#logoutBtn').addEventListener('click', async () => {
   }
   logout('');
 });
+$('#pauseBtn').addEventListener('click', () => act('pause'));
+$('#resumeBtn').addEventListener('click', () => act('resume'));
 $('#forfeitBtn').addEventListener('click', () => { if (confirm('Forfeit the match? Your opponent wins.')) act('forfeit'); });
 $('#roomPill').addEventListener('click', async () => {
   const url = `${location.origin}${location.pathname}?room=${S.room}`;
@@ -442,16 +444,20 @@ function cardFront(c) {
   const r = c.slice(0, -1), s = SYM[c.slice(-1)], face = 'JQK'.includes(r);
   return `<span class="c tl"><b>${r}</b><i>${s}</i></span><div class="mid${face ? ' face-l' : ''}">${face ? `${r}<small>${s}</small>` : s}</div><span class="c br"><b>${r}</b><i>${s}</i></span>`;
 }
+const DEAL_MS = 620, DEAL_GAP = 280; // flight time of one card, and the pause between cards
 function makeCard(c, animate, delay) {
   const n = document.createElement('div');
   n.className = 'card' + (isRed(c) ? ' red' : '');
   n.dataset.c = c || '';
   n.innerHTML = '<div class="inner"><div class="face back">♠</div><div class="face front"></div></div>';
-  if (c) { n.querySelector('.front').innerHTML = cardFront(c); n.classList.add('up'); }
+  if (c) n.querySelector('.front').innerHTML = cardFront(c);
+  if (c && !animate) n.classList.add('up');
   if (animate) {
     n.classList.add('deal'); n.style.setProperty('--d', delay + 'ms');
     n.addEventListener('animationend', () => n.classList.remove('deal'), { once: true });
     sfx.deal(delay / 1000);
+    // face cards land face-down, then turn over once they reach the felt
+    if (c) setTimeout(() => { n.classList.add('up'); sfx.flip(); }, delay + DEAL_MS - 120);
   }
   return n;
 }
@@ -528,7 +534,7 @@ function dealerVisible(v) {
 function renderDealer(v) {
   const vis = dealerVisible(v);
   const np = dealOrder(v).length;
-  syncCards($('#dealerCards'), vis, (i) => (i < 2 ? (i * (np + 1) + np) * 150 : 0));
+  syncCards($('#dealerCards'), vis, (i) => (i < 2 ? (i * (np + 1) + np) * DEAL_GAP : 0));
   const hidden = vis.length >= 2 && !vis[1];
   const t = $('#dealerTotal');
   if (!vis.length) { t.className = 'total'; t.textContent = ''; return; }
@@ -572,7 +578,7 @@ function renderSeat(i, v, prev) {
       hn.innerHTML = '<div class="cards"></div><div class="hmeta"><span class="total"></span><span class="hbet"><i class="coin"></i><b></b></span><span class="res"></span></div>';
       box.appendChild(hn);
     }
-    syncCards(hn.querySelector('.cards'), h.cards, (ci) => (ci < 2 ? (ci * per + posInDeal) * 150 : 0));
+    syncCards(hn.querySelector('.cards'), h.cards, (ci) => (ci < 2 ? (ci * per + posInDeal) * DEAL_GAP : 0));
     setTotal(hn.querySelector('.total'), h.cards, { bj: h.bj });
     hn.querySelector('.hbet b').textContent = fmt(h.bet) + (h.doubled ? ' ×2' : '');
     const r = v.results && v.results[i] && v.results[i][k];
@@ -728,6 +734,13 @@ function renderDock(v) {
   const live = ['betting', 'playing', 'dealer', 'settled'].includes(v.phase);
   $('#dock').classList.toggle('hidden', v.phase === 'lobby' || v.phase === 'over');
   $('#forfeitBtn').classList.toggle('hidden', !(playing && ['betting', 'playing', 'dealer'].includes(v.phase)));
+  $('#dock').classList.toggle('frozen', !!v.paused);
+  $('#pauseBtn').classList.toggle('hidden', !(v.you.host && live && !v.over && !v.paused));
+  $('#pauseOv').classList.toggle('hidden', !v.paused);
+  if (v.paused) {
+    $('#pauseTxt').textContent = v.you.host ? 'Timers are stopped. Resume when everyone is ready.' : `${v.paused.name} paused the match. Waiting for the host to resume.`;
+    $('#resumeBtn').classList.toggle('hidden', !v.you.host);
+  }
   if (!live) return;
   const specTxt = seated ? 'You are out of chips. Spectating.' : 'You are spectating.';
 
@@ -1009,6 +1022,8 @@ function sysNode(m) {
     case 'seat': return pill('armchair', `${nm(D.n)} took seat ${D.s + 1}`);
     case 'unseat': return pill('user-minus', `${nm(D.n)} left ${D.s != null ? 'seat ' + (D.s + 1) : 'their seat'}`);
     case 'shuffle': return pill('shuffle', 'Shoe reshuffled');
+    case 'pause': return pill('pause', `${nm(D.n)} paused the game`);
+    case 'resume': return pill('play', D.auto ? 'Game resumed automatically' : `${nm(D.n)} resumed the game`);
     case 'timeout': return pill('timer', `${nm(D.n)} timed out, auto-stand`);
     case 'forfeit': return pill('flag', `${nm(D.n)} forfeited`);
     case 'dc': return pill('wifi-off', `${nm(D.n)} disconnected`);
@@ -1182,6 +1197,7 @@ addEventListener('keydown', (e) => {
   const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
   if (e.key === '/' && !typing && S.view) { e.preventDefault(); if (!desktop()) document.body.dataset.tab = 'chat'; else if (document.body.classList.contains('chat-collapsed')) setChat(false); $('#chatInput').focus(); return; }
   if (typing || !S.view || appEl.classList.contains('hidden')) return;
+  if (S.view.paused) return;
   const k = e.key.toLowerCase();
   if (k === 'h') doAction('hit');
   else if (k === 's') doAction('stand_hand');
