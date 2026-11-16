@@ -13,10 +13,11 @@
 
 <!-- ============ LOGIN ============ -->
 <div id="login" class="login">
-  <div class="login-bg" aria-hidden="true"><i class="fc c1">A♠</i><i class="fc c2">K♥</i><i class="fc c3">10♦</i><i class="fc c4">J♣</i></div>
+  <div class="login-bg" id="loginBg" aria-hidden="true"></div>
   <form id="loginForm" class="login-card" autocomplete="off">
+    <span class="idx tl" aria-hidden="true"><b>A</b><i>♠</i></span><span class="idx br" aria-hidden="true"><b>A</b><i>♠</i></span><span class="wm" aria-hidden="true">♠</span>
     <div class="logo"><svg viewBox="0 0 32 32" width="34" height="34"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>21</b></span></div>
-    <p class="tag">1v1 blackjack. Two sit, everyone else watches.</p>
+    <p class="tag">Online blackjack. Pick a mode, take a seat, play chips.</p>
     <div id="stepPass"><label>Master password<input id="inPass" type="password" placeholder="Table password" autocomplete="current-password" required></label></div>
     <div id="stepUser" class="hidden">
       <div class="unlocked"><span data-ic="check"></span>Password accepted <button type="button" class="linkbtn" id="backPass">Change</button></div>

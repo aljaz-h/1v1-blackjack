@@ -262,11 +262,56 @@ function showLogin(msg) {
   $('#inName').value = S.name || '';
   $('#inRoom').value = new URLSearchParams(location.search).get('room') || LS.get('bj.room') || '';
   $('#inPass').value = '';
+  seedLoginBg();
   setStep('pass');
 }
+// scatter of cards / blackjack hands / chip stacks / dice behind the login card, re-randomised on every visit
+function seedLoginBg() {
+  const bg = $('#loginBg'); bg.innerHTML = '';
+  const small = innerWidth < 640, cols = small ? 3 : 6, rows = small ? 5 : 4;
+  const R = (a, b) => a + Math.random() * (b - a), pick = (l) => l[Math.floor(Math.random() * l.length)];
+  const ranks = ['A', 'K', 'Q', 'J', '10', '9', '7'], suits = ['♠', '♥', '♦', '♣'];
+  const card = (r, s) => `<div class="fcard${'♥♦'.includes(s) ? ' red' : ''}"><span>${r}</span><i>${s}</i></div>`;
+  const chipCls = ['k5', 'k10', 'k25', 'k50', 'k100', 'k500'];
+  const makers = [
+    () => card(pick(ranks), pick(suits)),
+    () => card(pick(ranks), pick(suits)),
+    () => card(pick(ranks), pick(suits)),
+    () => { const s1 = pick(suits), s2 = pick(suits); return `<div class="fhand">${card('A', s1)}${card(pick(['K', 'Q', 'J', '10']), s2)}<span class="tot">BLACKJACK</span></div>`; },
+    () => { const s1 = pick(suits); return `<div class="fhand">${card('10', s1)}${card('J', pick(suits))}${card('A', pick(suits))}<span class="tot">21</span></div>`; },
+    () => { const n = 2 + Math.floor(Math.random() * 3); return `<div class="fstack">${Array.from({ length: n }, () => { const k = pick(chipCls); return `<div class="chip ${k}"><span>${k.slice(1)}</span></div>`; }).join('')}</div>`; },
+    () => `<div class="fstack">${Array.from({ length: 3 }, () => { const k = pick(chipCls); return `<div class="chip ${k}"><span>${k.slice(1)}</span></div>`; }).join('')}</div>`,
+    () => { const n = 1 + Math.floor(Math.random() * 6), on = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] }[n]; return `<div class="fdice">${Array.from({ length: 9 }, (_, i) => on.includes(i) ? '<i></i>' : '<b></b>').join('')}</div>`; },
+    () => { const s = pick(suits); return `<div class="fsuit" style="color:${'♥♦'.includes(s) ? '#dc2626' : '#e2e8f0'}">${s}</div>`; },
+    () => '<div class="fbadge">21</div>',
+  ];
+  const cells = Array.from({ length: cols * rows }, (_, i) => i).sort(() => Math.random() - .5);
+  cells.forEach((cell) => {
+    if (Math.random() < .18) return; // leave a few gaps
+    const cx = (cell % cols + R(.15, .85)) / cols * 100, cy = (Math.floor(cell / cols) + R(.15, .85)) / rows * 100;
+    const el = document.createElement('div'); el.className = 'fl'; el.innerHTML = pick(makers)();
+    const sc = R(.7, 1.25) * (small ? .75 : 1);
+    const st = el.style;
+    st.left = cx + '%'; st.top = cy + '%'; st.marginLeft = '-40px'; st.marginTop = '-55px';
+    st.setProperty('--r', R(-28, 28).toFixed(1) + 'deg'); st.setProperty('--s', sc.toFixed(2));
+    st.setProperty('--o', R(.1, .2).toFixed(2)); st.setProperty('--bl', (sc > 1.1 ? R(1, 2.2) : 0).toFixed(1) + 'px');
+    st.setProperty('--dur', R(16, 30).toFixed(1) + 's'); st.setProperty('--dl', (-R(0, 20)).toFixed(1) + 's');
+    st.setProperty('--dx', R(-14, 14).toFixed(0) + 'px'); st.setProperty('--dr', R(-8, 8).toFixed(1) + 'deg');
+    bg.appendChild(el);
+  });
+}
+
 // login is two steps: master password first, then name + room
 function setStep(step) {
+  const first = S.step === undefined, prev = S.step;
   S.step = step;
+  if (!first && prev !== step && !REDUCED.matches) {
+    const c = $('.login-card'); c.classList.remove('flip'); void c.offsetWidth; c.classList.add('flip');
+    setTimeout(() => c.classList.remove('flip'), 520);
+    setTimeout(() => applyStep(step), 230);
+  } else applyStep(step);
+}
+function applyStep(step) {
   $('#stepPass').classList.toggle('hidden', step !== 'pass');
   $('#stepUser').classList.toggle('hidden', step !== 'user');
   $('#inName').required = step === 'user';
