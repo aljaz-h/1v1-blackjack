@@ -6,9 +6,11 @@ const E = require('../lib/engine');
 const A = { id: 'a1', name: 'Alice' };
 const B = { id: 'b1', name: 'Bob' };
 const now0 = 1_000_000;
+// helper: a room whose host has already opened the table (the host is whoever acts first)
+const newRoom = (name, now) => { const st = E.newRoom(name, now); st.open = true; return st; };
 
 function table(settings = {}) {
-  const st = E.newRoom('t', now0);
+  const st = newRoom('t', now0);
   E.applyAction(st, A, { type: 'join' }, now0);
   E.applyAction(st, B, { type: 'join' }, now0);
   E.applyAction(st, A, { type: 'sit', seat: 0 }, now0);
@@ -36,11 +38,32 @@ test('match starts when both ready; settings validated', () => {
   assert.strictEqual(st.settings.decks, 6); // 3 is invalid -> default kept
 });
 
-test('only seated players change settings, only in lobby', () => {
-  const st = E.newRoom('t', now0);
+test('only the host changes settings, only in lobby', () => {
+  const st = newRoom('t', now0);
   const C = { id: 'c1', name: 'Cara' };
+  E.applyAction(st, A, { type: 'join' }, now0);
   E.applyAction(st, C, { type: 'join' }, now0);
-  assert.throws(() => E.applyAction(st, C, { type: 'settings', settings: {} }, now0), /not seated/);
+  assert.strictEqual(st.host, A.id, 'first to join is the host');
+  assert.throws(() => E.applyAction(st, C, { type: 'settings', settings: {} }, now0), /Only the host/);
+  E.applyAction(st, A, { type: 'settings', settings: { minBet: 20 } }, now0);
+  assert.strictEqual(st.settings.minBet, 20);
+});
+
+test('table must be opened by the host before anyone can sit; host leaves -> next active user inherits', () => {
+  const st = E.newRoom('h', now0);
+  E.applyAction(st, A, { type: 'join' }, now0);
+  E.applyAction(st, B, { type: 'join' }, now0);
+  assert.throws(() => E.applyAction(st, A, { type: 'sit', seat: 0 }, now0), /setting up/);
+  assert.throws(() => E.applyAction(st, B, { type: 'open' }, now0), /Only the host/);
+  E.applyAction(st, A, { type: 'settings', settings: { mode: 'classic' } }, now0);
+  E.applyAction(st, A, { type: 'open' }, now0);
+  assert.strictEqual(E.buildView(st, B.id, now0).open, true);
+  E.applyAction(st, B, { type: 'sit', seat: 3 }, now0);
+  assert.strictEqual(st.seats[3].id, B.id, 'any seat of the mode can be picked');
+  // host unseen for > 2 min: Bob's next action makes him host
+  E.applyAction(st, B, { type: 'ping' }, now0 + 3 * 60_000);
+  assert.strictEqual(st.host, B.id);
+  assert.strictEqual(E.buildView(st, B.id, now0 + 3 * 60_000).you.host, true);
 });
 
 test('bet validation and deal order', () => {
@@ -212,7 +235,7 @@ test('spectators cannot act; seats can be claimed after forfeit', () => {
 });
 
 test('name clash and chat limits', () => {
-  const st = E.newRoom('t', now0);
+  const st = newRoom('t', now0);
   E.applyAction(st, A, { type: 'join' }, now0);
   assert.throws(() => E.applyAction(st, { id: 'zz', name: 'alice' }, { type: 'join' }, now0), /already/);
   E.applyAction(st, A, { type: 'chat', text: 'x'.repeat(500) }, now0);
@@ -261,7 +284,7 @@ test('system events carry a kind and data for rich rendering', () => {
 });
 
 test('avatar profiles: validation, view data and same-color fallback', () => {
-  const st = E.newRoom('p', now0);
+  const st = newRoom('p', now0);
   for (const u of [A, B]) E.applyAction(st, u, { type: 'join' }, now0);
   E.applyAction(st, A, { type: 'sit', seat: 0 }, now0);
   E.applyAction(st, B, { type: 'sit', seat: 1 }, now0);
@@ -284,7 +307,7 @@ test('avatar profiles: validation, view data and same-color fallback', () => {
 const C = { id: 'c1', name: 'Cara' };
 const D = { id: 'd1', name: 'Dan' };
 function tableN(users, settings = {}) {
-  const st = E.newRoom('m', now0);
+  const st = newRoom('m', now0);
   users.forEach((u, i) => {
     E.applyAction(st, u, { type: 'join' }, now0);
     E.applyAction(st, u, { type: 'sit', seat: i }, now0);
@@ -361,7 +384,7 @@ test('tournament: blinds rise every N rounds and busted-out players are eliminat
 });
 
 test('tournament needs three players, duel exactly two, classic up to six', () => {
-  const st = E.newRoom('cap', now0);
+  const st = newRoom('cap', now0);
   for (const u of [A, B]) {
     E.applyAction(st, u, { type: 'join' }, now0);
   }

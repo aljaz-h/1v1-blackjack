@@ -90,8 +90,8 @@
         <!-- lobby overlay -->
         <div class="overlay" id="lobby">
           <div class="lobby-card">
-            <h2>Table setup</h2>
-            <div class="lobby-seats" id="lobbySeats"></div>
+            <h2 id="lobbyTitle">Table setup</h2><div class="host-line" id="hostLine"></div>
+            <div class="lobby-seats arc" id="lobbySeats"></div>
             <div class="settings" id="settings" data-mode="duel">
               <div class="field wide"><label>Game mode</label><div class="modes" id="modeSel"></div><div class="mode-desc" id="modeDesc"></div></div>
               <div class="field wide"><label class="switch"><input type="checkbox" id="sBlitz"><span class="sw-track"></span><span class="sw-txt"><b>Blitz</b><small>8s to bet and act, fast rounds. Works with every mode.</small></span></label></div>
@@ -107,6 +107,7 @@
               <div class="field"><label>Bet timer</label><select id="sBetTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
               <div class="field"><label>Action timer</label><select id="sActTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
             </div>
+            <div class="open-row hidden" id="openRow"><button class="btn primary big" id="openBtn" type="button"></button></div>
             <div class="lobby-foot" id="lobbyFoot"></div>
           </div>
         </div>

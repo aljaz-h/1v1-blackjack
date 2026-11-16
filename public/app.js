@@ -741,7 +741,15 @@ function renderLobby(v) {
   const on = v.phase === 'lobby';
   $('#lobby').classList.toggle('on', on);
   if (!on) return;
-  const seated = v.you.seat >= 0, md = v.mode, st = v.settings;
+  const seated = v.you.seat >= 0, md = v.mode, st = v.settings, isHost = v.you.host, open = v.open;
+  // the host sets the table up first, then opens it; only then can anyone pick a seat
+  $('#lobbyTitle').textContent = !open && isHost ? 'Set up your table' : 'Table setup';
+  $('#hostLine').innerHTML = v.host ? `${ic('crown')}<span>Host: <b>${esc(v.host.name)}</b>${isHost ? ' (you)' : ''}${open ? '' : isHost ? '' : ' is setting up the table…'}</span>` : '';
+  $('#lobbySeats').classList.toggle('hidden', !open);
+  $('#settings').classList.toggle('hidden', !open && !isHost);
+  $('#openRow').classList.toggle('hidden', open || !isHost);
+  $('#openBtn').innerHTML = `${ic('armchair')}Open the table for seating`;
+  $('#settings').classList.toggle('readonly', !isHost);
   // settings values
   const sig = JSON.stringify(st);
   if (S.sig.settings !== sig) {
@@ -755,30 +763,34 @@ function renderLobby(v) {
     $('#settings').dataset.mode = st.mode;
     $('#sRounds').options[0].textContent = st.mode === 'duel' ? 'Until broke' : 'Until one left';
   }
-  $$('#settings input, #settings select, #balPresets button, #modeSel button').forEach((el) => (el.disabled = !seated));
-  $('#sBetTime').disabled = $('#sActTime').disabled = !seated || st.blitz;
+  $$('#settings input, #settings select, #balPresets button, #modeSel button').forEach((el) => (el.disabled = !isHost));
+  $('#sBetTime').disabled = $('#sActTime').disabled = !isHost || st.blitz;
   // seats
-  const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat, md.max]);
+  const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat, md.max, st.mode]);
   if (S.sig.lobby !== lsig) {
     S.sig.lobby = lsig;
-    $('#lobbySeats').dataset.n = md.max;
-    $('#lobbySeats').innerHTML = Array.from({ length: md.max }, (_, i) => {
+    const n = md.max, spread = [1, 1, .55, .7, .85, 1][n] ?? 1;
+    const at = (i) => { const t = Math.PI * (i + .5) / n; return `--x:${(50 - 44 * spread * Math.cos(t)).toFixed(1)}%;--y:${(2 + 56 * Math.sin(t)).toFixed(1)}%;`; };
+    $('#lobbySeats').dataset.n = n;
+    $('#lobbySeats').innerHTML = `<div class="arc-dealer">${st.mode === 'showdown' ? 'SHOWDOWN · NO DEALER' : 'DEALER'}</div>` + Array.from({ length: n }, (_, i) => {
       const s = v.seats[i];
-      if (!s) return `<div class="lseat" data-s="${i}" style="--c:var(--s${i})"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1} is open</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${ic('armchair')}${seated ? 'Move here' : 'Take seat'}</button></div>`;
+      if (!s) return `<div class="lseat" data-s="${i}" style="${at(i)}--c:var(--s${i})"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1}</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${ic('armchair')}${seated ? 'Move here' : 'Take seat'}</button></div>`;
       const mine = v.you.seat === i;
-      return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}" style="--c:${colorOf(s.name, i)}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
+      return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}" style="${at(i)}--c:${colorOf(s.name, i)}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
         <div class="st">${!s.online ? 'Offline' : s.ready ? 'Ready ✓' : 'Not ready'}</div>
         ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div><button class="btn ghost sm" data-act="profile">${ic('palette')}Avatar</button>` : ''}</div>`;
     }).join('');
   }
   const seatedN = v.seats.filter(Boolean).length, readyN = v.seats.filter((s) => s && s.ready).length;
   const need = md.min - seatedN;
+  if (!open) { $('#lobbyFoot').textContent = isHost ? 'Pick the game mode and rules, then open the table. Players choose their seats once it is open.' : `Waiting for ${v.host ? v.host.name : 'the host'} to set up the table…`; return; }
   const range = md.min === md.max ? `${md.min}` : `${md.min}–${md.max}`;
   $('#lobbyFoot').textContent = need > 0 ? `${md.label} needs ${range} players. Waiting for ${need} more to take a seat. Everyone else spectates.` :
     v.canStart ? 'Starting…' :
     seated ? `${readyN}/${seatedN} ready. Everyone hits Ready to start. Changing a setting un-readies everyone.` :
     seatedN >= md.max ? 'Table is full. You are watching.' : `${readyN}/${seatedN} ready. Take a seat to play, or just watch.`;
 }
+$('#openBtn').addEventListener('click', () => act('open'));
 $('#lobbySeats').addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   if (b.dataset.act === 'sit') act('sit', { seat: +b.dataset.seat });
@@ -869,12 +881,12 @@ function renderOver(v) {
    side panel, rounds, chat
    ===================================================================== */
 function renderSide(v) {
-  const sig = JSON.stringify([v.seats.map((s) => s && [s.id, s.online, s.balance, s.alive]), v.members.map((m) => m.id), v.you.seat, v.phase, v.settings, v.limits, v.stats, v.series.length]);
+  const sig = JSON.stringify([v.seats.map((s) => s && [s.id, s.online, s.balance, s.alive]), v.members.map((m) => m.id), v.you.seat, v.phase, v.settings, v.limits, v.stats, v.series.length, v.open]);
   if (S.sig.side === sig) return;
   S.sig.side = sig;
   const lobbyish = ['lobby', 'over'].includes(v.phase), cap = lobbyish ? v.mode.max : NSEATS;
-  const idx = Array.from({ length: cap }, (_, i) => i).filter((i) => v.seats[i] || lobbyish);
-  $('#sideSeats').innerHTML = idx.map((i) => {
+  const idx = Array.from({ length: cap }, (_, i) => i).filter((i) => v.seats[i] || (lobbyish && v.open));
+  $('#sideSeats').innerHTML = !idx.length ? '<div style="color:var(--dim);font-size:12px">Table not open yet</div>' : idx.map((i) => {
     const s = v.seats[i];
     if (!s) return `<div class="sseat empty"><span class="avatar" style="--c:#2a3558;opacity:.5">?</span><div><div class="n">Seat ${i + 1}</div><div class="s">Open</div></div><button class="btn mini primary" data-sit="${i}">Sit</button></div>`;
     const out = !s.alive && v.phase !== 'lobby';
@@ -939,6 +951,8 @@ function sysNode(m) {
   const card = (cls, html) => { d.innerHTML = `<div class="ev-card ${cls}">${html}</div>`; return d; };
   switch (k) {
     case 'join': return pill('user-plus', `${nm(D.n)} joined`);
+    case 'open': return pill('armchair', `${nm(D.n)} opened the table`);
+    case 'host': return pill('crown', `${nm(D.n)} is now the host`);
     case 'seat': return pill('armchair', `${nm(D.n)} took seat ${D.s + 1}`);
     case 'unseat': return pill('user-minus', `${nm(D.n)} left ${D.s != null ? 'seat ' + (D.s + 1) : 'their seat'}`);
     case 'shuffle': return pill('shuffle', 'Shoe reshuffled');

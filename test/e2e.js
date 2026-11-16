@@ -59,6 +59,10 @@ class Client {
 
   const [a, b, s] = [new Client('Alice'), new Client('Bob'), new Client('Spec')];
   for (const c of [a, b, s]) await c.login();
+  assert.strictEqual((await b.act('sit', { seat: 1 })).status, 400, 'table not open yet');
+  assert.strictEqual((await b.act('settings', { settings: { minBet: 5 } })).status, 403, 'only the host edits settings');
+  assert.strictEqual((await a.act('open')).status, 200);
+  assert.strictEqual(a.view.you.host, true);
   await a.act('sit', { seat: 0 }); await b.act('sit', { seat: 1 });
   const bad = await s.act('sit', { seat: 0 }); assert.strictEqual(bad.status, 400, JSON.stringify(bad));
   await a.act('settings', { settings: { startingBalance: 300, minBet: 20, maxBet: 100, maxRounds: 5, betTime: 15, actionTime: 15 } });

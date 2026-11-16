@@ -618,3 +618,20 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 .login-card .unlocked{justify-content:center}.login-card .linkbtn{margin-left:6px}
 @media (max-width:640px){.login-card{min-height:460px}}
 .login-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+
+/* host + seat arc */
+.host-line{display:flex;align-items:center;gap:8px;margin:-8px 0 14px;font-size:12px;color:var(--dim)}.host-line svg{width:15px;height:15px;color:#fbbf24}.host-line b{color:var(--txt)}
+.open-row{display:flex;justify-content:center;margin-top:16px}.open-row.hidden{display:none}
+.settings.readonly{opacity:.7}.settings.readonly input,.settings.readonly select{cursor:not-allowed}
+.lobby-seats.arc{display:block;position:relative;height:410px;margin:0 0 22px;grid-template-columns:none}
+.lobby-seats.arc::before{content:'';position:absolute;left:1%;right:1%;top:0;bottom:6%;border-radius:0 0 50% 50%/0 0 100% 100%;background:radial-gradient(ellipse at 50% 0%,rgba(35,138,87,.35),rgba(5,34,23,.45) 75%);border:2px solid rgba(245,196,81,.35);border-top-color:rgba(245,196,81,.15);box-shadow:inset 0 0 40px rgba(0,0,0,.4)}
+.arc-dealer{position:absolute;left:50%;top:10px;transform:translateX(-50%);font:800 11px var(--font);letter-spacing:.22em;color:rgba(255,255,255,.6);padding:5px 14px;border-radius:99px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);white-space:nowrap}
+.lobby-seats.arc .lseat{position:absolute;left:var(--x);top:var(--y);transform:translateX(-50%);width:108px;min-height:0;padding:8px 6px;gap:5px;font-size:13px}
+.lobby-seats.arc .lseat .avatar{width:30px;height:30px}.lobby-seats.arc .lseat .btn.sm{padding:5px 9px;font-size:12px}.lobby-seats.arc .lseat b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lobby-card:has(.lobby-seats.arc:not(.hidden)){width:min(740px,100%)}
+@media (max-width:640px){
+  .lobby-seats.arc[data-n]{display:grid;height:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .lobby-seats.arc::before{display:none}
+  .arc-dealer{position:static;transform:none;grid-column:1/-1;text-align:center}
+  .lobby-seats.arc .lseat{position:static;transform:none;width:auto}
+}

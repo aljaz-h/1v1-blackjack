@@ -16,6 +16,10 @@ Live chat, animated cards and chips, synthesized sounds, hotkeys, mobile friendl
 Hotkeys: `H` hit · `S` stand · `D` double · `P` split · `Enter` place bet / next round · `/` chat.
 Cards are shuffled with `crypto.randomInt`; the dealer's hole card never leaves the server until it's revealed.
 
+## Hosting a table
+
+The first person in a room is its **host**. The host picks the game mode and rules, then presses **Open the table**. Only then can players choose where to sit, around a curved blackjack-table layout with as many seats as the mode allows. Only the host can change settings. If the host is gone for 2+ minutes, the next person to act becomes host.
+
 ## Game modes
 
 Pick a mode in the lobby once seated (any seated player can change it; changing a setting un-readies everyone).
