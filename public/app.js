@@ -650,7 +650,7 @@ function renderSide(v) {
 }
 function drawSpark(v) {
   const svg = $('#spark'), ser = v.series;
-  if (ser.length < 2) { svg.innerHTML = '<text x="120" y="40" fill="#5b6c97" font-size="11" text-anchor="middle">Balance chart appears after round 1</text>'; return; }
+  if (ser.length < 2) { svg.innerHTML = '<text x="120" y="40" fill="#6e737b" font-size="11" text-anchor="middle">Balance chart appears after round 1</text>'; return; }
   const all = ser.flat(), lo = Math.min(...all), hi = Math.max(...all), span = Math.max(1, hi - lo);
   const pt = (i, val) => `${(i / (ser.length - 1)) * 228 + 6},${62 - ((val - lo) / span) * 54}`;
   svg.innerHTML = [0, 1].map((s) => `<polyline fill="none" stroke="${s ? '#e879f9' : '#38bdf8'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${ser.map((r, i) => pt(i, r[s])).join(' ')}"/>`).join('');
@@ -690,10 +690,24 @@ function renderChat(v) {
     }
     box.appendChild(d);
   }
+  if (last !== 0 && desktop() && document.body.classList.contains('chat-collapsed')) {
+    S.unread = (S.unread || 0) + fresh.filter((m) => !m.s && m.u !== v.you.id).length;
+    renderUnread();
+  }
   S.chatLast = v.chat[v.chat.length - 1].id;
   while (box.children.length > 120) box.firstChild.remove();
   if (near || last === 0) box.scrollTop = box.scrollHeight;
 }
+const desktop = () => matchMedia('(min-width:1181px)').matches;
+function renderUnread() { const u = $('#unread'); u.textContent = S.unread > 99 ? '99+' : S.unread || ''; u.classList.toggle('on', S.unread > 0); }
+function setChat(collapsed) {
+  document.body.classList.toggle('chat-collapsed', collapsed);
+  try { localStorage.setItem('bj.chatc', collapsed ? '1' : ''); } catch { /* ignore */ }
+  if (!collapsed) { S.unread = 0; renderUnread(); const m = $('#msgs'); m.scrollTop = m.scrollHeight; }
+}
+$('#chatToggle').addEventListener('click', () => setChat(true));
+$('#chatRail').addEventListener('click', () => { setChat(false); $('#chatInput').focus(); });
+if (localStorage.getItem('bj.chatc') === '1') document.body.classList.add('chat-collapsed');
 $('#chatForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const i = $('#chatInput'), t = i.value.trim();
@@ -763,7 +777,7 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
-  if (e.key === '/' && !typing && S.view) { e.preventDefault(); if (matchMedia('(max-width:1180px)').matches) document.body.dataset.tab = 'chat'; $('#chatInput').focus(); return; }
+  if (e.key === '/' && !typing && S.view) { e.preventDefault(); if (!desktop()) document.body.dataset.tab = 'chat'; else if (document.body.classList.contains('chat-collapsed')) setChat(false); $('#chatInput').focus(); return; }
   if (typing || !S.view || appEl.classList.contains('hidden')) return;
   const k = e.key.toLowerCase();
   if (k === 'h') doAction('hit');
