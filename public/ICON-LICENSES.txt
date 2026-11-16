@@ -1,0 +1,5 @@
+Icons are bundled from Iconify icon sets (https://icon-sets.iconify.design/):
+
+Lucide by Lucide Contributors — ISC — https://github.com/lucide-icons/lucide/blob/main/LICENSE
+Material Line Icons by Vjacheslav Trushkin — MIT — https://github.com/cyberalien/line-md/blob/main/license.txt
+SVG Spinners by Utkarsh Verma — MIT — https://github.com/n3r4zzurr0/svg-spinners/blob/main/LICENSE

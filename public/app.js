@@ -74,7 +74,9 @@ const sfx = (() => {
 
 function toast(msg, kind = '') {
   const t = document.createElement('div');
-  t.className = 'toast ' + kind; t.textContent = msg;
+  t.className = 'toast ' + kind;
+  t.innerHTML = ic(kind === 'bad' ? 'lm-alert-circle-loop' : kind === 'ok' ? 'lm-confirm-circle' : 'info');
+  const tx = document.createElement('span'); tx.textContent = msg; t.appendChild(tx);
   $('#toasts').appendChild(t);
   setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2600);
 }
@@ -133,6 +135,8 @@ async function act(type, extra = {}) {
 function setConn(c) {
   S.conn = c;
   $('#connDot').className = 'dot ' + (c === 'live' ? 'live' : c === 'off' ? 'off' : '');
+  $('#connDot').classList.toggle('hidden', c === 'retry');
+  $('#connSpin').classList.toggle('hidden', c !== 'retry');
 }
 
 async function streamLoop(gen) {
@@ -204,6 +208,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('#loginBtn');
   btn.disabled = true; $('#loginErr').textContent = '';
+  $('#loginSpin').classList.remove('hidden'); $('#loginTxt').textContent = 'Checking…';
   try {
     const r = await post('/api/login', { name: $('#inName').value, password: $('#inPass').value, id: S.id });
     S.token = r.token; S.id = r.id; S.name = r.name;
@@ -214,7 +219,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   } catch (err) {
     $('#loginErr').textContent = err.message;
     const c = $('.login-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
-  } finally { btn.disabled = false; }
+  } finally { btn.disabled = false; $('#loginSpin').classList.add('hidden'); $('#loginTxt').textContent = 'Enter the casino'; }
 });
 
 async function enter() {
@@ -226,7 +231,7 @@ async function enter() {
     loginEl.classList.add('hidden'); appEl.classList.remove('hidden');
     $('#meName').textContent = S.name; $('#meAvatar').outerHTML = avatar(S.name, -1, 'sm').replace('class="avatar', 'id="meAvatar" class="avatar');
     $('#roomName').textContent = S.room;
-    $('#soundBtn').textContent = sfx.muted ? '🔇' : '🔊';
+    soundIcon();
     history.replaceState(null, '', S.room === 'main' ? location.pathname : `?room=${S.room}`);
     applyView(r.view);
     streamLoop(S.gen);
@@ -258,9 +263,10 @@ $('#logoutBtn').addEventListener('click', async () => {
 $('#forfeitBtn').addEventListener('click', () => { if (confirm('Forfeit the match? Your opponent wins.')) act('forfeit'); });
 $('#roomPill').addEventListener('click', async () => {
   const url = `${location.origin}${location.pathname}?room=${S.room}`;
-  try { await navigator.clipboard.writeText(url); toast('Invite link copied'); } catch { toast(url); }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied', 'ok'); } catch { toast(url); }
 });
-$('#soundBtn').addEventListener('click', () => { sfx.setMuted(!sfx.muted); $('#soundBtn').textContent = sfx.muted ? '🔇' : '🔊'; sfx.unlock(); sfx.chip(); });
+function soundIcon() { $('#soundBtn').innerHTML = ic(sfx.muted ? 'volume-x' : 'volume-2'); }
+$('#soundBtn').addEventListener('click', () => { sfx.setMuted(!sfx.muted); soundIcon(); sfx.unlock(); sfx.chip(); });
 $$('.mtabs button').forEach((b) => b.addEventListener('click', () => {
   document.body.dataset.tab = b.dataset.t;
   $$('.mtabs button').forEach((x) => x.classList.toggle('on', x === b));
@@ -401,7 +407,7 @@ function renderSeat(i, v, prev) {
   if (br._sig !== sig) {
     br._sig = sig;
     if (v.phase !== 'betting') br.innerHTML = '';
-    else if (s.bet == null) br.innerHTML = '<span class="txt">Thinking…</span>';
+    else if (s.bet == null) br.innerHTML = `<span class="txt">${ic('sp-3-dots-bounce', 'dots')}Thinking</span>`;
     else { br.innerHTML = `<div class="chip big ${chipClass(s.bet)} drop"><span>${short(s.bet)}</span></div><span class="txt">Bet locked</span>`; if (!S.instant && (!prev || prev.seats[i]?.bet == null)) sfx.chip(); }
   }
 
@@ -417,24 +423,25 @@ function renderSeat(i, v, prev) {
 
 function renderBanner(v) {
   const names = [0, 1].map((i) => (v.seats[i] ? v.seats[i].name : '—'));
-  let t = '', sub = '', cls = '';
-  if (v.phase === 'betting') t = 'PLACE YOUR BETS';
+  let t = '', sub = '', cls = '', icon = '';
+  if (v.phase === 'betting') { t = 'PLACE YOUR BETS'; icon = 'coins'; }
   else if (v.phase === 'playing' && v.turn) {
     const mine = v.turn.seat === v.you.seat;
     t = mine ? 'YOUR MOVE' : `${names[v.turn.seat].toUpperCase()}'S MOVE`;
     if (v.hands[v.turn.seat].length > 1) sub = `Hand ${v.turn.hand + 1} of ${v.hands[v.turn.seat].length}`;
   } else if (v.phase === 'playing') t = 'DEALER CHECKS…';
-  else if (v.phase === 'dealer') t = 'DEALER PLAYS';
+  else if (v.phase === 'dealer') { t = 'DEALER PLAYS'; icon = 'sp-bars-scale-middle'; }
   else if (v.phase === 'settled' && v.results) {
     const nets = [0, 1].map((i) => (v.results[i] || []).reduce((a, r) => a + r.net, 0));
     const f = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
-    if (v.you.seat >= 0) { const n = nets[v.you.seat]; t = n > 0 ? `YOU WIN ${f(n)}` : n < 0 ? `YOU LOSE ${f(n)}` : 'PUSH'; cls = n > 0 ? 'pos' : n < 0 ? 'neg' : ''; }
+    if (v.you.seat >= 0) { const n = nets[v.you.seat]; t = n > 0 ? `YOU WIN ${f(n)}` : n < 0 ? `YOU LOSE ${f(n)}` : 'PUSH'; cls = n > 0 ? 'pos' : n < 0 ? 'neg' : ''; icon = n > 0 ? 'trophy' : n < 0 ? 'trending-down' : 'equal'; }
     else t = nets.map((n, i) => `${names[i]} ${f(n)}`).join('  ·  ');
     if (v.over) sub = 'Final round';
   }
-  const b = $('#banner'), key = t + '|' + sub;
+  const b = $('#banner'), key = t + '|' + sub + '|' + icon;
   if (b._k !== key) {
     b._k = key; b.className = 'banner ' + cls; b.textContent = t;
+    if (icon) b.insertAdjacentHTML('afterbegin', ic(icon, 'bn-ic'));
     if (sub) { const s = document.createElement('small'); s.textContent = sub; b.appendChild(s); }
     void b.offsetWidth; b.classList.add('pop');
   }
@@ -541,7 +548,7 @@ function renderDock(v) {
       setDock('next');
       const voted = v.seats[me].voted;
       $('#nextBtn').disabled = voted || !!v.over;
-      $('#nextBtn').innerHTML = voted ? 'Waiting for opponent…' : 'Next round <kbd>↵</kbd>';
+      $('#nextBtn').innerHTML = voted ? ic('sp-3-dots-fade') + 'Waiting for opponent' : 'Next round' + ic('arrow-right') + '<kbd>↵</kbd>';
       $('#nextBtn').classList.toggle('hidden', !!v.over);
     } else setDock('spec', v.over ? 'Match is ending…' : 'Next round starting soon…');
   }
@@ -581,11 +588,11 @@ function renderLobby(v) {
     S.sig.lobby = lsig;
     $('#lobbySeats').innerHTML = [0, 1].map((i) => {
       const s = v.seats[i];
-      if (!s) return `<div class="lseat" data-s="${i}"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1} is open</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${seated ? 'Move here' : 'Take seat ' + (i + 1)}</button></div>`;
+      if (!s) return `<div class="lseat" data-s="${i}"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1} is open</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${ic('armchair')}${seated ? 'Move here' : 'Take seat ' + (i + 1)}</button></div>`;
       const mine = v.you.seat === i;
       return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
         <div class="st">${!s.online ? 'Offline' : s.ready ? 'Ready ✓' : 'Not ready'}</div>
-        ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div>` : ''}</div>`;
+        ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div>` : ''}</div>`;
     }).join('');
   }
   const both = v.seats[0] && v.seats[1];
@@ -617,7 +624,7 @@ function renderOver(v) {
     return `<div class="d${o.winner === i ? ' w' : ''}">${avatar(s.name, i, 'sm')} <b style="display:inline">${esc(s.name)}</b><b>${fmt(s.balance)}</b><span class="${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span><div style="color:var(--dim);font-size:12px;margin-top:4px">${v.stats.w[i]}W · ${v.stats.l[i]}L · ${v.stats.p[i]}P · ${v.stats.bj[i]} BJ</div></div>`;
   };
   const seated = v.you.seat >= 0;
-  $('#overCard').innerHTML = `<div class="trophy">${o.winner >= 0 ? '🏆' : '🤝'}</div><h2>${o.winner >= 0 ? esc(winName) + ' takes the pot' : 'Dead heat'}</h2><div style="color:var(--dim)">${reason} · ${v.round} round${v.round === 1 ? '' : 's'}</div>
+  $('#overCard').innerHTML = `<div class="trophy">${ic(o.winner >= 0 ? 'trophy' : 'handshake')}</div><h2>${o.winner >= 0 ? esc(winName) + ' takes the pot' : 'Dead heat'}</h2><div style="color:var(--dim)">${reason} · ${v.round} round${v.round === 1 ? '' : 's'}</div>
     <div class="over-stats">${card(0)}${card(1)}</div>
     ${seated ? '<button class="btn primary big" id="backLobby">Back to lobby (rematch)</button>' : [0, 1].some((i) => !v.seats[i]) ? '<div class="row" style="display:flex;gap:8px">' + [0, 1].filter((i) => !v.seats[i]).map((i) => `<button class="btn primary" data-sit="${i}">Take seat ${i + 1}</button>`).join('') + '</div>' : '<div style="color:var(--dim)">Waiting for the players…</div>'}`;
   const bl = $('#backLobby'); if (bl) bl.addEventListener('click', () => act('lobby'));
@@ -674,6 +681,41 @@ function renderRounds(v) {
   ).join('');
 }
 
+/* system events in chat: small pills for presence, cards for matches and rounds */
+const WHY = { broke: 'Opponent ran out of chips', rounds: 'Highest stack after the round limit', forfeit: 'Opponent forfeited', disconnect: 'Opponent disconnected' };
+function sysNode(m) {
+  const d = document.createElement('div'), D = m.d || {}, k = m.k || '';
+  d.className = 'msg sys' + (k ? ' k-' + k : '');
+  const nm = (n) => `<b class="ev-n">${esc(n)}</b>`;
+  const pill = (icon, html) => { d.innerHTML = `<span class="ev-pill">${ic(icon)}<span>${html}</span></span>`; return d; };
+  const card = (cls, html) => { d.innerHTML = `<div class="ev-card ${cls}">${html}</div>`; return d; };
+  switch (k) {
+    case 'join': return pill('user-plus', `${nm(D.n)} joined`);
+    case 'seat': return pill('armchair', `${nm(D.n)} took seat ${D.s + 1}`);
+    case 'unseat': return pill('user-minus', `${nm(D.n)} left ${D.s != null ? 'seat ' + (D.s + 1) : 'their seat'}`);
+    case 'shuffle': return pill('shuffle', 'Shoe reshuffled');
+    case 'timeout': return pill('timer', `${nm(D.n)} timed out, auto-stand`);
+    case 'forfeit': return pill('flag', `${nm(D.n)} forfeited`);
+    case 'dc': return pill('wifi-off', `${nm(D.n)} disconnected`);
+    case 'draw': return pill('handshake', 'The match ends in a draw');
+    case 'start':
+      return card('ev-start', `<div class="ev-h">${ic('swords')}<span>Match started</span></div>
+        <div class="vs">${avatar(D.a, 0, 'sm')}<b>${esc(D.a)}</b><em>vs</em><b>${esc(D.b)}</b>${avatar(D.b, 1, 'sm')}</div>
+        <div class="ev-sub"><i class="coin"></i>Starting stack <b>${fmt(D.stack)}</b></div>`);
+    case 'round':
+      return card('ev-round', `<div class="ev-h">${ic('spade')}<span>Round ${D.r}</span></div>` + D.p.map((p, i) => {
+        const up = p.net > 0, dn = p.net < 0;
+        return `<div class="rr ${up ? 'up' : dn ? 'dn' : 'eq'}">${avatar(p.n, i, 'sm')}<span class="rn">${esc(p.n)}</span>
+          <span class="rv">${ic(up ? 'trending-up' : dn ? 'trending-down' : 'equal')}${up ? '+' : dn ? '−' : ''}${fmt(Math.abs(p.net))}</span>
+          <span class="rb"><i class="coin"></i>${fmt(p.bal)}</span></div>`;
+      }).join(''));
+    case 'win':
+      return card('ev-win', `<span class="tro">${ic('trophy')}</span><div><div class="wt">${nm(D.n)} wins the match</div><div class="ev-sub">${WHY[D.why] || ''}</div></div>`);
+    default:
+      return pill('info', esc(m.x || ''));
+  }
+}
+
 function renderChat(v) {
   const box = $('#msgs');
   const last = S.chatLast || 0;
@@ -681,13 +723,11 @@ function renderChat(v) {
   if (!fresh.length) return;
   const near = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   for (const m of fresh) {
+    if (m.s) { box.appendChild(sysNode(m)); continue; }
     const d = document.createElement('div');
-    if (m.s) { d.className = 'msg sys'; d.textContent = m.x; }
-    else {
-      d.className = 'msg' + (m.u === v.you.id ? ' mine' : '');
-      const b = document.createElement('b'); b.textContent = m.n; b.style.color = m.u === v.you.id ? '' : `hsl(${hue(m.n)} 85% 72%)`;
-      d.append(b, document.createTextNode(m.x));
-    }
+    d.className = 'msg' + (m.u === v.you.id ? ' mine' : '');
+    const b = document.createElement('b'); b.textContent = m.n; b.style.color = m.u === v.you.id ? '' : `hsl(${hue(m.n)} 85% 72%)`;
+    d.append(b, document.createTextNode(m.x));
     box.appendChild(d);
   }
   if (last !== 0 && desktop() && document.body.classList.contains('chat-collapsed')) {
@@ -791,6 +831,8 @@ addEventListener('keydown', (e) => {
 });
 
 /* boot */
+hydrateIcons();
+soundIcon();
 (async () => {
   const q = new URLSearchParams(location.search).get('room');
   S.room = (q || localStorage.getItem('bj.room') || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';

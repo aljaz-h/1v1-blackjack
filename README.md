@@ -76,5 +76,6 @@ test/              engine unit tests, end-to-end bot match, fake Upstash
 ```
 
 Font: [Geist](https://vercel.com/font) (SIL OFL, self-hosted in `public/fonts/`).
+Icons: [Iconify](https://iconify.design) sets Lucide (ISC), Material Line Icons and SVG Spinners (MIT), baked into `public/icons.js` (see `public/ICON-LICENSES.txt`; regenerate with `node scripts/build-icons.js`).
 
 Play money only. Gamble responsibly, even if it's fake chips.

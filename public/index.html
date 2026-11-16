@@ -20,7 +20,7 @@
     <label>Name<input id="inName" maxlength="16" placeholder="Pick a handle" required></label>
     <label>Master password<input id="inPass" type="password" placeholder="Table password" required></label>
     <label><span>Room <em class="opt">optional</em></span><input id="inRoom" maxlength="20" placeholder="main"></label>
-    <button class="btn primary big" id="loginBtn" type="submit">Enter the casino</button>
+    <button class="btn primary big" id="loginBtn" type="submit"><span id="loginTxt">Enter the casino</span><span id="loginSpin" class="spin hidden" data-ic="sp-180-ring-with-bg"></span></button>
     <div class="err" id="loginErr" role="alert"></div>
     <p class="fine">18+ in spirit only. Play chips, no real money.</p>
   </form>
@@ -30,31 +30,31 @@
 <div id="app" class="app hidden">
   <header class="topbar">
     <div class="logo sm"><svg viewBox="0 0 32 32" width="26" height="26"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>21</b></span></div>
-    <button class="pill" id="roomPill" title="Copy invite link"><span class="dot" id="connDot"></span><span id="roomName">main</span><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg></button>
+    <button class="pill" id="roomPill" title="Copy invite link"><span class="dot" id="connDot"></span><span class="conn-spin hidden" id="connSpin" data-ic="sp-180-ring-with-bg"></span><span id="roomName">main</span><span data-ic="copy"></span></button>
     <div class="grow"></div>
     <span class="online" id="onlineCount"></span>
-    <button class="icon-btn" id="soundBtn" title="Sound">🔊</button>
+    <button class="icon-btn" id="soundBtn" title="Sound" data-ic="volume-2"></button>
     <div class="me"><span class="avatar sm" id="meAvatar"></span><span id="meName"></span></div>
-    <button class="btn ghost sm" id="logoutBtn">Leave</button>
+    <button class="btn ghost sm" id="logoutBtn"><span data-ic="log-out"></span>Leave</button>
   </header>
 
   <aside class="side panel" data-tabpanel="info">
     <section>
-      <h3>Seats</h3>
+      <h3><span data-ic="armchair"></span>Seats</h3>
       <div id="sideSeats" class="sideseats"></div>
     </section>
     <section>
-      <h3>Spectators <span class="count" id="specCount"></span></h3>
+      <h3><span data-ic="eye"></span>Spectators <span class="count" id="specCount"></span></h3>
       <div id="specList" class="speclist"></div>
     </section>
     <section>
-      <h3>Match</h3>
+      <h3><span data-ic="swords"></span>Match</h3>
       <div id="rules" class="chips-row"></div>
       <div class="duel" id="duel"></div>
       <svg id="spark" class="spark" viewBox="0 0 240 70" preserveAspectRatio="none"></svg>
     </section>
     <section class="hotkeys">
-      <h3>Hotkeys</h3>
+      <h3><span data-ic="keyboard"></span>Hotkeys</h3>
       <div><kbd>H</kbd> hit <kbd>S</kbd> stand <kbd>D</kbd> double <kbd>P</kbd> split</div>
       <div><kbd>Enter</kbd> place bet / next round <kbd>/</kbd> chat</div>
     </section>
@@ -63,7 +63,7 @@
   <main class="main">
     <section class="tablebox" id="tablebox">
       <div class="felt" id="felt">
-        <button class="btn ghost sm forfeit" id="forfeitBtn">Forfeit</button>
+        <button class="btn ghost sm forfeit" id="forfeitBtn"><span data-ic="flag"></span>Forfeit</button>
         <div class="shoe" id="shoe"><div class="shoe-cards"><i></i><i></i><i></i></div><span id="shoeCount"></span></div>
         <div class="dealer-zone">
           <div class="dealer-label"><span>DEALER</span><span class="total" id="dealerTotal"></span></div>
@@ -110,26 +110,26 @@
               </div>
             </div>
           </div>
-          <button class="btn primary big" id="placeBet">Place bet <kbd>↵</kbd></button>
+          <button class="btn primary big" id="placeBet"><span data-ic="coins"></span>Place bet <kbd>↵</kbd></button>
         </div>
         <div class="dock-sec" id="dockPlay">
-          <button class="btn act hit" id="aHit">Hit <kbd>H</kbd></button>
-          <button class="btn act stand" id="aStand">Stand <kbd>S</kbd></button>
-          <button class="btn act dbl" id="aDouble">Double <kbd>D</kbd></button>
-          <button class="btn act split" id="aSplit">Split <kbd>P</kbd></button>
+          <button class="btn act hit" id="aHit"><span data-ic="plus"></span>Hit <kbd>H</kbd></button>
+          <button class="btn act stand" id="aStand"><span data-ic="hand"></span>Stand <kbd>S</kbd></button>
+          <button class="btn act dbl" id="aDouble"><span data-ic="chevrons-up"></span>Double <kbd>D</kbd></button>
+          <button class="btn act split" id="aSplit"><span data-ic="split"></span>Split <kbd>P</kbd></button>
         </div>
-        <div class="dock-sec" id="dockWait"><span class="wait-txt" id="waitTxt"></span><div class="timer-big"><i id="waitBar"></i></div></div>
-        <div class="dock-sec" id="dockNext"><span class="wait-txt" id="nextTxt"></span><button class="btn primary" id="nextBtn">Next round <kbd>↵</kbd></button></div>
+        <div class="dock-sec" id="dockWait"><span class="wait-txt"><span class="spin" data-ic="sp-3-dots-bounce"></span><span id="waitTxt"></span></span><div class="timer-big"><i id="waitBar"></i></div></div>
+        <div class="dock-sec" id="dockNext"><span class="wait-txt" id="nextTxt"></span><button class="btn primary" id="nextBtn">Next round<span data-ic="arrow-right"></span><kbd>↵</kbd></button></div>
         <div class="dock-sec" id="dockSpec"><span class="wait-txt" id="specTxt"></span></div>
       </div>
     </section>
 
     <nav class="mtabs">
-      <button data-t="chat" class="on">Chat</button><button data-t="rounds">Rounds</button><button data-t="info">Table</button>
+      <button data-t="chat" class="on"><span data-ic="message-circle"></span>Chat</button><button data-t="rounds"><span data-ic="history"></span>Rounds</button><button data-t="info"><span data-ic="users"></span>Table</button>
     </nav>
 
     <section class="rounds panel" data-tabpanel="rounds">
-      <div class="panel-h"><h3>Recent rounds</h3></div>
+      <div class="panel-h"><h3><span data-ic="history"></span>Recent rounds</h3></div>
       <div class="rtable">
         <div class="rrow rhead"><span>Rnd</span><span>Player</span><span>Hand</span><span>Dealer</span><span>Bet</span><span>Net</span></div>
         <div id="rbody"></div>
@@ -139,15 +139,16 @@
   </main>
 
   <aside class="chat panel" data-tabpanel="chat">
-    <div class="panel-h"><h3>Table chat</h3><button class="icon-btn sm" id="chatToggle" title="Collapse chat" aria-label="Collapse chat">»</button></div>
+    <div class="panel-h"><h3><span data-ic="message-circle"></span>Table chat</h3><button class="icon-btn sm" id="chatToggle" title="Collapse chat" aria-label="Collapse chat" data-ic="chevrons-right"></button></div>
     <div class="msgs" id="msgs"></div>
     <div class="emotes"><button>🔥</button><button>💀</button><button>🤡</button><button>🍀</button><button>😭</button><button>🫡</button></div>
     <form class="chat-in" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="240" placeholder="Talk your talk…"><button class="btn primary mini" type="submit">Send</button></form>
-    <button class="chat-rail" id="chatRail" title="Open chat" aria-label="Open chat"><span class="ico">💬</span><span class="unread" id="unread"></span><span class="lbl">CHAT</span></button>
+    <button class="chat-rail" id="chatRail" title="Open chat" aria-label="Open chat"><span class="ico" data-ic="message-circle"></span><span class="unread" id="unread"></span><span class="lbl">CHAT</span></button>
   </aside>
 </div>
 
 <div id="toasts"></div>
+<script src="/icons.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

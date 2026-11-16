@@ -242,3 +242,20 @@ test('simulated 300 random rounds keep invariants', () => {
     assert.strictEqual(st.phase, 'betting');
   }
 });
+
+test('system events carry a kind and data for rich rendering', () => {
+  const st = table();
+  rig(st, ['10S', '10H', 'KS', '9D', '9H', '8D']);
+  E.applyAction(st, A, { type: 'bet', amount: 100 }, now0);
+  E.applyAction(st, B, { type: 'bet', amount: 100 }, now0);
+  E.applyAction(st, A, { type: 'stand_hand', seq: st.seq }, now0);
+  E.applyAction(st, B, { type: 'stand_hand', seq: st.seq }, now0);
+  E.tick(st, st.timerAt);
+  const kinds = st.chat.filter((m) => m.s).map((m) => m.k);
+  assert.ok(['join', 'seat', 'start', 'round'].every((k) => kinds.includes(k)), kinds.join());
+  const round = st.chat.find((m) => m.k === 'round');
+  assert.strictEqual(round.d.r, 1);
+  assert.strictEqual(round.d.p[0].n, 'Alice');
+  assert.strictEqual(typeof round.d.p[1].net, 'number');
+  assert.ok(round.x.startsWith('Round 1:'));
+});
