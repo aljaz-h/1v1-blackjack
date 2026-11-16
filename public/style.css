@@ -550,7 +550,8 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 .modes button:disabled{cursor:default;opacity:.7}
 .mode-desc{font-size:12px;color:var(--dim);line-height:1.5;margin-top:6px;min-height:36px}
 .switch{display:flex;align-items:center;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0}
-.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch{position:relative}
+.switch input{position:absolute;left:0;top:0;width:1px;height:1px;padding:0;margin:0;border:0;opacity:0;pointer-events:none}
 .sw-track{flex:none;width:38px;height:22px;border-radius:99px;background:var(--panel2);border:1px solid var(--line2);position:relative;transition:background .2s,border-color .2s}
 .sw-track::after{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#9ca3af;transition:transform .2s,background .2s}
 .switch input:checked+.sw-track{background:rgba(251,191,36,.25);border-color:#fbbf24}
@@ -723,12 +724,17 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 .volpop{position:absolute;top:calc(100% + 8px);right:-6px;z-index:60;width:150px;padding:10px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line2);box-shadow:0 14px 34px rgba(0,0,0,.5);opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s,visibility .15s}
 .vol:hover .volpop,.vol:focus-within .volpop,.vol.open .volpop{opacity:1;visibility:visible;transform:none}
 .volpop::before{content:"";position:absolute;left:0;right:0;top:-10px;height:10px}
-#volRange{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;outline:none;cursor:pointer;background:linear-gradient(90deg,var(--accent,#8b5cf6) var(--p,70%),rgba(255,255,255,.14) var(--p,70%))}
-#volRange::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
-#volRange::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.volpop #volRange{-webkit-appearance:none;appearance:none;display:block;width:100%;height:18px;margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;outline:none;cursor:pointer}
+.volpop #volRange:focus,.volpop #volRange:focus-visible{border:0;box-shadow:none;outline:none}
+#volRange::-webkit-slider-runnable-track{height:6px;border-radius:99px;background:linear-gradient(90deg,var(--violet,#8b5cf6) var(--p,70%),rgba(255,255,255,.16) var(--p,70%))}
+#volRange::-moz-range-track{height:6px;border-radius:99px;background:rgba(255,255,255,.16)}
+#volRange::-moz-range-progress{height:6px;border-radius:99px;background:var(--violet,#8b5cf6)}
+#volRange::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-5px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.55);transition:transform .12s}
+#volRange::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.55)}
+#volRange:hover::-webkit-slider-thumb,#volRange:active::-webkit-slider-thumb{transform:scale(1.12)}
+.volpop #volRange:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px rgba(139,92,246,.45),0 2px 6px rgba(0,0,0,.55)}
 .topbar{position:relative;z-index:50}
 
-.autotog{float:right;display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:11px;color:var(--dim)}.autotog input{width:auto;margin:0}.autotog label{margin:0;cursor:pointer;font-size:11px}
 #sMax:disabled{opacity:.6}
 
 /* split hands on the curved table: keep them side by side (wrapping pushed the seat off the felt) */
@@ -753,3 +759,37 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
   .felt{min-height:0}
 }
 @media (max-height:760px){ @container (min-width:560px){ .seats .seat.multi{margin-top:-52px} } }
+
+/* insurance */
+#dockIns{gap:12px 14px}
+.ins-txt{display:flex;flex-direction:column;gap:2px;max-width:340px;text-align:left}
+.ins-txt b{font-size:15px;letter-spacing:.02em}.ins-txt small{color:var(--dim);font-size:12px;line-height:1.35}
+.btn.act.ins-yes{background:linear-gradient(135deg,#34d399,#059669);color:#04130c;border-color:transparent}
+.btn.act.ins-yes b{margin-left:4px;font-variant-numeric:tabular-nums}
+.btn.act.ins-no{background:rgba(255,255,255,.08);color:var(--txt)}
+#dockIns .timer-big{flex-basis:100%}
+.insb{display:none;font-size:10px;font-weight:800;letter-spacing:.05em;color:#6ee7b7;background:rgba(16,185,129,.16);border:1px solid rgba(16,185,129,.4);padding:2px 7px;border-radius:99px}
+.insb.on{display:inline-block}.insb.lost{color:#fca5a5;background:rgba(244,63,94,.14);border-color:rgba(244,63,94,.4)}
+
+.total.pending{visibility:hidden}
+
+/* max bet mode switch */
+.seg{display:flex;gap:3px;padding:3px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--glass-line);margin-bottom:8px}
+.seg button{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:0 10px;border-radius:9px;font-size:12px;font-weight:800;letter-spacing:.03em;color:var(--dim);transition:background .15s,color .15s}
+.seg button:hover:not(:disabled){color:var(--txt)}
+.seg button.on{background:#f4f4f5;color:#111}
+.seg button:disabled{cursor:not-allowed}
+.seg button [data-ic],.seg button svg{width:18px;height:18px}
+.maxnote{font-size:12px;color:var(--dim);line-height:1.4;padding:8px 2px}
+.maxnote.hidden,#sMax.hidden{display:none}
+
+/* insurance bar: one compact row, countdown along the bottom edge */
+.dock{position:relative}
+#dockIns{flex-wrap:nowrap;justify-content:space-between;padding-bottom:6px}
+#dockIns .ins-txt{flex:1 1 0;min-width:0;max-width:none}
+#dockIns .btn{flex:none;white-space:nowrap}
+#dockIns .timer-big{position:absolute;left:14px;right:14px;bottom:7px;flex:none;width:auto;height:4px}
+@media (max-width:760px){#dockIns{flex-wrap:wrap}#dockIns .ins-txt{flex-basis:100%}}
+.seg button.on,.seg button.on svg{color:#111}
+.seg button.on svg *{stroke:#111}
+.seg button svg{width:22px;height:22px}

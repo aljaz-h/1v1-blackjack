@@ -426,6 +426,8 @@ $('#logoutBtn').addEventListener('click', async () => {
   }
   logout('');
 });
+$('#insYes').addEventListener('click', () => act('insure', S.view && S.view.insYou && S.view.insYou.even ? { take: true } : { amount: S.view && S.view.insYou ? S.view.insYou.max : 0 }));
+$('#insNo').addEventListener('click', () => act('insure', { take: false, amount: 0 }));
 $('#pauseBtn').addEventListener('click', () => act('pause'));
 $('#resumeBtn').addEventListener('click', () => act('resume'));
 $('#forfeitBtn').addEventListener('click', () => { if (confirm('Forfeit the match? Your opponent wins.')) act('forfeit'); });
@@ -484,6 +486,7 @@ function revealCard(n, c) {
   n.querySelector('.front').innerHTML = cardFront(c);
   n.classList.toggle('red', isRed(c));
   n.dataset.c = c;
+  if (n.parentNode && !S.instant) n.parentNode._until = Math.max(n.parentNode._until || 0, performance.now() + 750);
   void n.offsetWidth;
   n.classList.add('up');
   if (!S.instant) { n.classList.add('lift'); n.addEventListener('animationend', () => n.classList.remove('lift'), { once: true }); }
@@ -494,7 +497,9 @@ function syncCards(box, list, delayFn) {
     const c = list[i];
     const n = box.children[i];
     if (!n) {
-      const nn = makeCard(c, !S.instant, delayFn(i)); box.appendChild(nn);
+      const dl = delayFn(i);
+      const nn = makeCard(c, !S.instant, dl); box.appendChild(nn);
+      if (!S.instant) box._until = Math.max(box._until || 0, performance.now() + dl + DEAL_MS + 450); // totals wait for the cards
       if (!S.instant) { const o = shoeOffset(nn); nn.style.setProperty('--fx', o.x + 'px'); nn.style.setProperty('--fy', o.y + 'px'); nn.style.setProperty('--fr', (Math.random() * 30 - 8).toFixed(0) + 'deg'); }
       continue;
     }
@@ -506,9 +511,14 @@ function syncCards(box, list, delayFn) {
   while (box.children.length > list.length) box.lastChild.remove();
 }
 
-function setTotal(el, cards, { bj = false, hidden = false } = {}) {
+function setTotal(el, cards, { bj = false, hidden = false, until = 0 } = {}) {
   const real = cards.filter(Boolean);
   el.className = 'total'; el.textContent = '';
+  const wait = until - performance.now();
+  if (wait > 0) { // the cards are still flying in: don't give the hand away yet
+    el.classList.add('pending');
+    clearTimeout(el._pt); el._pt = setTimeout(() => el.classList.remove('pending'), wait);
+  }
   if (!real.length) return;
   const key = hidden ? 'h' + real.length : bj ? 'bj' : handTotal(real).total + ':' + real.length;
   if (el._k !== key) { if (el._k !== undefined && !S.instant) el._tu = performance.now() + 450; el._k = key; }
@@ -558,7 +568,7 @@ function renderDealer(v) {
   const t = $('#dealerTotal');
   if (!vis.length) { t.className = 'total'; t.textContent = ''; return; }
   const real = vis.filter(Boolean);
-  setTotal(t, vis, { hidden, bj: real.length === 2 && handTotal(real).total === 21 && !hidden });
+  setTotal(t, vis, { hidden, bj: real.length === 2 && handTotal(real).total === 21 && !hidden, until: $('#dealerCards')._until });
 }
 
 function renderSeat(i, v, prev) {
@@ -594,16 +604,21 @@ function renderSeat(i, v, prev) {
     let hn = box.children[k];
     if (!hn) {
       hn = document.createElement('div'); hn.className = 'hand';
-      hn.innerHTML = '<div class="cards"></div><div class="hmeta"><span class="total"></span><span class="hbet"><i class="coin"></i><b></b></span><span class="res"></span></div>';
+      hn.innerHTML = '<div class="cards"></div><div class="hmeta"><span class="total"></span><span class="hbet"><i class="coin"></i><b></b></span><span class="insb"></span><span class="res"></span></div>';
       box.appendChild(hn);
     }
     syncCards(hn.querySelector('.cards'), h.cards, (ci) => (ci < 2 ? (ci * per + posInDeal) * DEAL_GAP : 0));
-    setTotal(hn.querySelector('.total'), h.cards, { bj: h.bj });
+    setTotal(hn.querySelector('.total'), h.cards, { bj: h.bj, until: hn.querySelector('.cards')._until });
     hn.querySelector('.hbet b').textContent = fmt(h.bet) + (h.doubled ? ' ×2' : '');
     const r = v.results && v.results[i] && v.results[i][k];
+    const ib = hn.querySelector('.insb');
+    const insTaken = k === 0 && v.insAmt && v.insAmt[i] > 0, evenTaken = k === 0 && (h.even || (v.ins && v.ins.even[i]));
+    ib.textContent = evenTaken ? 'EVEN MONEY' : insTaken ? (v.phase === 'settled' && v.insNet && v.insNet[i] ? `INS ${v.insNet[i] > 0 ? '+' : '−'}${fmt(Math.abs(v.insNet[i]))}` : `INS ${fmt(v.insAmt[i])}`) : '';
+    ib.classList.toggle('on', !!ib.textContent);
+    ib.classList.toggle('lost', v.phase === 'settled' && insTaken && v.insNet && v.insNet[i] < 0);
     const rs = hn.querySelector('.res');
     rs.className = 'res' + (r ? ' ' + r.out : '');
-    rs.textContent = r ? (r.out === 'bust' ? '' : { win: 'WIN', lose: 'LOSE', push: 'PUSH', blackjack: 'BLACKJACK' }[r.out] + ' ') + (r.net ? `${r.net > 0 ? '+' : '−'}${fmt(Math.abs(r.net))}` : '') : '';
+    rs.textContent = r ? (r.out === 'bust' ? '' : (r.even ? 'EVEN MONEY' : { win: 'WIN', lose: 'LOSE', push: 'PUSH', blackjack: 'BLACKJACK' }[r.out]) + ' ') + (r.net ? `${r.net > 0 ? '+' : '−'}${fmt(Math.abs(r.net))}` : '') : '';
     rs.textContent = rs.textContent.trim();
     hn.className = 'hand' + (r ? ' ' + r.out : '') + (active && v.turn.hand === k ? ' cur' : '');
   });
@@ -650,7 +665,7 @@ function renderBanner(v) {
   let t = '', sub = '', cls = '', icon = '';
   if (v.phase === 'betting') {
     t = 'PLACE YOUR BETS'; icon = 'coins';
-    if (modeOf(v) === 'tournament') sub = `Level ${v.limits.level + 1} · bets ${fmt(v.limits.min)}–${fmt(v.limits.max)}`;
+    if (modeOf(v) === 'tournament') sub = `Level ${v.limits.level + 1} · bets ${fmt(v.limits.min)}–${fmtMax(v.limits.max)}`;
   } else if (v.phase === 'playing' && v.turn) {
     const mine = v.turn.seat === v.you.seat;
     t = mine ? 'YOUR MOVE' : `${nameOf(v.turn.seat).toUpperCase()}'S MOVE`;
@@ -679,8 +694,9 @@ function renderBanner(v) {
    dock (bets / actions)
    ===================================================================== */
 const dock = {
-  bet: $('#dockBet'), play: $('#dockPlay'), wait: $('#dockWait'), next: $('#dockNext'), spec: $('#dockSpec'),
+  bet: $('#dockBet'), play: $('#dockPlay'), ins: $('#dockIns'), wait: $('#dockWait'), next: $('#dockNext'), spec: $('#dockSpec'),
 };
+const fmtMax = (n) => (n >= 1e9 ? '∞' : fmt(n));
 const betCap = (v) => { const me = v.seats[v.you.seat]; return me && me.alive ? Math.min(v.limits.max, me.balance) : 0; };
 
 function renderChips(v) {
@@ -777,7 +793,15 @@ function renderDock(v) {
       setDock('wait', n ? `Bet locked. Waiting for ${n} more player${n > 1 ? 's' : ''}…` : 'Dealing…');
     } else setDock('spec', 'Betting is open. ' + specTxt);
   } else if (v.phase === 'playing') {
-    if (v.legal) {
+    if (v.insYou && !v.insYou.done) {
+      const bet = (v.hands[me] && v.hands[me][0] && v.hands[me][0].bet) || 0;
+      $('#insTitle').textContent = v.insYou.even ? 'Even money?' : 'Insurance?';
+      $('#insSub').textContent = v.insYou.even ? 'You have blackjack and the dealer shows an Ace. Take a sure 1:1 instead of risking a push.' : 'Dealer shows an Ace. Insure up to half your bet, pays 2:1 on a dealer blackjack.';
+      $('#insYes').innerHTML = v.insYou.even ? `${ic('check')}Even money <b>+${fmt(bet)}</b>` : `${ic('shield')}Insure <b>${fmt(v.insYou.max)}</b>`;
+      setDock('ins');
+    } else if (v.ins) {
+      setDock(playing ? 'wait' : 'spec', 'Waiting for insurance decisions…');
+    } else if (v.legal) {
       setDock('play');
       playBtn.hit.disabled = acting; playBtn.stand_hand.disabled = acting;
       playBtn.double.disabled = acting || !v.legal.double; playBtn.split.disabled = acting || !v.legal.split;
@@ -805,15 +829,16 @@ const setIds = { startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax',
 function collectSettings(over = {}) {
   return {
     mode: S.view ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
-    startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value, maxBetAuto: $('#sMaxAuto').checked,
+    startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value, maxBetMode: (S.view && S.view.settings.maxBetMode) || 'auto',
     decks: +$('#sDecks').value, payout: +$('#sPayout').value, h17: $('#sH17').value === '1',
     maxRounds: +$('#sRounds').value, blindEvery: +$('#sBlind').value, betTime: +$('#sBetTime').value, actionTime: +$('#sActTime').value,
     ...over,
   };
 }
-// typing your own max bet switches Auto off
-$('#sMax').addEventListener('input', () => { $('#sMaxAuto').checked = false; });
-$$('#settings input, #settings select').forEach((el) => el.addEventListener('change', () => act('settings', { settings: collectSettings() })));
+// typing your own max bet switches to Custom
+$('#sMax').addEventListener('change', () => act('settings', { settings: collectSettings({ maxBetMode: 'manual' }) }));
+$('#maxSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b && !b.disabled && S.view && S.view.settings.maxBetMode !== b.dataset.m) act('settings', { settings: collectSettings({ maxBetMode: b.dataset.m }) }); });
+$$('#settings input:not(#sMax), #settings select').forEach((el) => el.addEventListener('change', () => act('settings', { settings: collectSettings() })));
 $$('#balPresets button').forEach((b) => b.addEventListener('click', () => { $('#sBalance').value = b.dataset.v; act('settings', { settings: collectSettings() }); }));
 $('#modeSel').innerHTML = Object.entries(MODES).map(([id, m]) => `<button type="button" data-mode="${id}">${ic(m.icon)}<span>${m.label}</span></button>`).join('');
 $('#modeSel').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b && !b.disabled && S.view && S.view.settings.mode !== b.dataset.mode) act('settings', { settings: collectSettings({ mode: b.dataset.mode }) }); });
@@ -838,7 +863,9 @@ function renderLobby(v) {
     const set = (sel, val) => { const el = $(sel); if (document.activeElement !== el) el.value = String(val); };
     for (const [k, sel] of Object.entries(setIds)) set(sel, st[k]);
     set('#sH17', st.h17 ? '1' : '0');
-    $('#sMaxAuto').checked = !!st.maxBetAuto;
+    $$('#maxSeg button').forEach((b) => b.classList.toggle('on', b.dataset.m === st.maxBetMode));
+    $('#sMax').classList.toggle('hidden', st.maxBetMode === 'unlimited');
+    $('#maxNote').classList.toggle('hidden', st.maxBetMode !== 'unlimited');
     $('#sBlitz').checked = !!st.blitz;
     $$('#modeSel button').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.mode));
     $('#modeDesc').textContent = (MODES[st.mode] || MODES.duel).desc;
@@ -846,7 +873,8 @@ function renderLobby(v) {
     $('#sRounds').options[0].textContent = st.mode === 'duel' ? 'Until broke' : 'Until one left';
   }
   $$('#settings input, #settings select, #balPresets button, #modeSel button').forEach((el) => (el.disabled = !isHost));
-  $('#sMax').disabled = !isHost || !!st.maxBetAuto;
+  $('#sMax').disabled = !isHost || st.maxBetMode !== 'manual';
+  $$('#maxSeg button').forEach((b) => (b.disabled = !isHost));
   $('#sBetTime').disabled = $('#sActTime').disabled = !isHost || st.blitz;
   // seats
   const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat, md.max, st.mode]);
@@ -991,7 +1019,7 @@ function renderSide(v) {
   if (st.blitz) rules.push(`<span class="mode-chip blitz">${ic('zap')}Blitz</span>`);
   rules.push(`${st.decks} deck${st.decks > 1 ? 's' : ''}`);
   if (mode !== 'showdown') rules.push(`BJ ${st.payout === 1.5 ? '3:2' : st.payout === 1.2 ? '6:5' : '1:1'}`, st.h17 ? 'H17' : 'S17');
-  rules.push(`Bet ${fmt(lim.min)}–${fmt(lim.max)}`);
+  rules.push(`Bet ${fmt(lim.min)}–${fmtMax(lim.max)}`);
   if (mode === 'tournament') rules.push(`Level ${lim.level + 1}`, `Blinds ×1.5 / ${st.blindEvery} rds`);
   rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' ? 'Until broke' : 'Until one left');
   $('#rules').innerHTML = rules.map((t) => (t.startsWith('<span') ? t : `<span>${t}</span>`)).join('');
@@ -1047,12 +1075,14 @@ function sysNode(m) {
     case 'shuffle': return pill('shuffle', 'Shoe reshuffled');
     case 'pause': return pill('pause', `${nm(D.n)} paused the game`);
     case 'resume': return pill('play', D.auto ? 'Game resumed automatically' : `${nm(D.n)} resumed the game`);
+    case 'ins': return pill('shield', D.win ? `${nm(D.n)}'s insurance pays ${fmt(D.amt * 2)}` : `${nm(D.n)} loses the ${fmt(D.amt)} insurance`);
+    case 'even': return pill('shield', `${nm(D.n)} takes even money`);
     case 'timeout': return pill('timer', `${nm(D.n)} timed out, auto-stand`);
     case 'forfeit': return pill('flag', `${nm(D.n)} forfeited`);
     case 'dc': return pill('wifi-off', `${nm(D.n)} disconnected`);
     case 'draw': return pill('handshake', D.names ? `Draw between ${D.names.map((n) => nm(n)).join(', ')}` : 'The match ends in a draw');
     case 'out': return pill('skull', D.tourney ? `${nm(D.n)} eliminated · ${place(D.place)}` : `${nm(D.n)} is out of chips`);
-    case 'level': return pill('trending-up', `Blinds up: bets ${fmt(D.min)}–${fmt(D.max)}`);
+    case 'level': return pill('trending-up', `Blinds up: bets ${fmt(D.min)}–${fmtMax(D.max)}`);
     case 'start': {
       const names = D.names || [D.a, D.b], seats = D.seats || [0, 1], md = MODES[D.mode] || MODES.duel;
       const chips = names.map((n, k) => `<span class="pc">${avatar(n, seats[k], 'sm')}<b>${esc(n)}</b></span>`);
@@ -1197,7 +1227,8 @@ function tickUI() {
     ring.classList.toggle('ticking', !!on); ring.classList.toggle('low', !!on && low);
     if (on) ring.style.setProperty('--p', frac.toFixed(3));
   });
-  const showBar = v.timerAt && (v.timerKind === 'bet' || v.timerKind === 'action');
+  const showBar = v.timerAt && (v.timerKind === 'bet' || v.timerKind === 'action' || v.timerKind === 'ins');
+  $('#insBar').style.transform = `scaleX(${frac})`;
   $('#waitBar').parentElement.style.visibility = showBar ? 'visible' : 'hidden';
   $('#waitBar').style.transform = `scaleX(${frac})`;
   if (v.phase === 'settled' && v.timerKind === 'next' && v.you.seat >= 0)

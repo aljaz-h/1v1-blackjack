@@ -17,6 +17,7 @@
 
 - 🪑 **Real table feel**: curved felt, arc seating, chip rack, shoe, flying chips and card flips.
 - 🎲 **Four modes**: Duel, Classic, Showdown and Tournament, plus a **Blitz** timer toggle.
+- 🛡️ **Real casino rules**: insurance and even money when the dealer shows an Ace, split, double, all in, and a max bet that is auto, custom or unlimited.
 - 👑 **Host-run rooms**: the first in sets the rules, opens the table, everyone picks a seat, and the host can pause the match.
 - 🔐 **Zero accounts**: one master password, a display name and a room code.
 - 💬 **Chat, emotes, round history** and a live balance chart.

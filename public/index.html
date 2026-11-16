@@ -104,7 +104,9 @@
               <div class="field wide"><label>Starting balance</label>
                 <div class="inline"><input id="sBalance" type="number" min="50" step="50"><div class="presets" id="balPresets"><button type="button" data-v="500">500</button><button type="button" data-v="1000">1K</button><button type="button" data-v="5000">5K</button><button type="button" data-v="10000">10K</button><button type="button" data-v="100000">100K</button></div></div></div>
               <div class="field"><label>Min bet</label><input id="sMin" type="number" min="1"></div>
-              <div class="field"><label>Max bet<span class="autotog"><input type="checkbox" id="sMaxAuto" title="Scale with the starting balance"><label for="sMaxAuto">Auto</label></span></label><input id="sMax" type="number" min="1"></div>
+              <div class="field"><label>Max bet</label>
+                <div class="seg" id="maxSeg" role="group" aria-label="Max bet mode"><button type="button" data-m="auto" title="Half of the starting balance">Auto</button><button type="button" data-m="manual" title="Type your own limit">Custom</button><button type="button" data-m="unlimited" title="No table limit, bet anything up to your stack"><span data-ic="infinity"></span></button></div>
+                <input id="sMax" type="number" min="1"><div class="maxnote hidden" id="maxNote">No limit, your stack is the cap.</div></div>
               <div class="field"><label>Decks</label><select id="sDecks"><option>1</option><option>2</option><option>4</option><option>6</option><option>8</option></select></div>
               <div class="field" data-f="house"><label>Blackjack pays</label><select id="sPayout"><option value="1.5">3 : 2</option><option value="1.2">6 : 5</option><option value="1">1 : 1</option></select></div>
               <div class="field" data-f="house"><label>Dealer soft 17</label><select id="sH17"><option value="0">Stands</option><option value="1">Hits</option></select></div>
@@ -141,6 +143,12 @@
           <button class="btn act stand" id="aStand"><span data-ic="hand"></span>Stand <kbd>S</kbd></button>
           <button class="btn act dbl" id="aDouble"><span data-ic="chevrons-up"></span>Double <kbd>D</kbd></button>
           <button class="btn act split" id="aSplit"><span data-ic="split"></span>Split <kbd>P</kbd></button>
+        </div>
+        <div class="dock-sec" id="dockIns">
+          <div class="ins-txt"><b id="insTitle">Insurance?</b><small id="insSub"></small></div>
+          <button class="btn act ins-yes" id="insYes"></button>
+          <button class="btn act ins-no" id="insNo">No thanks</button>
+          <div class="timer-big"><i id="insBar"></i></div>
         </div>
         <div class="dock-sec" id="dockWait"><span class="wait-txt"><span class="spin" data-ic="sp-3-dots-bounce"></span><span id="waitTxt"></span></span><div class="timer-big"><i id="waitBar"></i></div></div>
         <div class="dock-sec" id="dockNext"><span class="wait-txt" id="nextTxt"></span><button class="btn primary" id="nextBtn">Next round<span data-ic="arrow-right"></span><kbd>↵</kbd></button></div>

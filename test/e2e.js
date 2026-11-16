@@ -79,7 +79,8 @@ class Client {
     else if (v.phase === 'playing' && v.turn?.seat === me) {
       const h = v.hands[me][v.turn.hand]; const tot = h.cards.reduce((x, y) => x + (/^[AKQJ1]/.test(y) ? 10 : parseInt(y)), 0);
       c.act(tot < 15 && v.legal ? 'hit' : 'stand_hand');
-    } else if (v.phase === 'settled') c.act('next');
+    } else if (v.phase === 'playing' && v.insYou && !v.insYou.done) c.act('insure', v.insYou.even ? { take: true } : { amount: v.insYou.max });
+    else if (v.phase === 'settled') c.act('next');
   };
   const da = drive(a), db = drive(b);
   a.onview = da; b.onview = db;
@@ -113,7 +114,8 @@ class Client {
     else if (v.phase === 'playing' && v.turn?.seat === me) {
       const h = v.hands[me][v.turn.hand]; const tot = h.cards.reduce((q, y) => q + (/^[AKQJ1]/.test(y) ? 10 : parseInt(y)), 0);
       x.act(tot < 15 && v.legal ? 'hit' : 'stand_hand');
-    } else if (v.phase === 'settled') x.act('next');
+    } else if (v.phase === 'playing' && v.insYou && !v.insYou.done) x.act('insure', v.insYou.even ? { take: true } : { amount: v.insYou.max });
+    else if (v.phase === 'settled') x.act('next');
   };
   bots.forEach((x) => (x.onview = driveN(x)));
   const t1 = Date.now();

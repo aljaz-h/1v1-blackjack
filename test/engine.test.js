@@ -129,6 +129,9 @@ test('dealer peek blackjack ends round, naturals push', () => {
   rig(st, ['AS', '9H', 'AD', 'KD', '9C', 'KS']);
   E.applyAction(st, A, { type: 'bet', amount: 100 }, now0);
   E.applyAction(st, B, { type: 'bet', amount: 100 }, now0);
+  assert.ok(st.ins); // dealer shows an Ace: insurance is offered first
+  E.applyAction(st, A, { type: 'insure', take: false }, now0);
+  E.applyAction(st, B, { type: 'insure', amount: 0 }, now0);
   assert.strictEqual(st.phase, 'dealer');
   E.tick(st, st.timerAt);
   assert.strictEqual(st.balances[0], 1000); // push
@@ -249,6 +252,9 @@ test('simulated 300 random rounds keep invariants', () => {
   for (let i = 0; i < 300; i++) {
     E.applyAction(st, A, { type: 'bet', amount: 10 + (i % 50) }, t);
     E.applyAction(st, B, { type: 'bet', amount: 10 }, t);
+    for (const [s, u] of [[0, A], [1, B]]) {
+      if (st.ins && st.ins.elig[s] && st.ins.amt[s] == null) E.applyAction(st, u, { type: 'insure', take: i % 2 === 0, amount: i % 2 ? 5 : 0 }, t);
+    }
     let g = 0;
     while (st.phase === 'playing' && g++ < 60) {
       const s = st.turn.seat; const u = s === 0 ? A : B;
@@ -544,7 +550,7 @@ test('max bet scales with the starting balance until set manually', () => {
   const st = newRoom('m', now0);
   E.applyAction(st, A, { type: 'join' }, now0);
   const set = (settings) => { E.applyAction(st, A, { type: 'settings', settings }, now0); return st.settings; };
-  assert.strictEqual(st.settings.maxBetAuto, true);
+  assert.strictEqual(st.settings.maxBetMode, 'auto');
   assert.strictEqual(set({ startingBalance: 1000 }).maxBet, 500);
   assert.strictEqual(set({ startingBalance: 5000 }).maxBet, 2500);
   assert.strictEqual(set({ startingBalance: 100000 }).maxBet, 50000);
@@ -553,4 +559,85 @@ test('max bet scales with the starting balance until set manually', () => {
   assert.strictEqual(m.maxBet, 700);
   assert.strictEqual(set({ startingBalance: 10000 }).maxBet, 700); // manual value is kept
   assert.strictEqual(set({ maxBetAuto: true }).maxBet, 5000);
+  assert.strictEqual(set({ maxBetMode: 'unlimited' }).maxBet, E.UNLIMITED);
+  assert.strictEqual(set({ startingBalance: 2000 }).maxBet, E.UNLIMITED); // stays unlimited
+  assert.strictEqual(E.buildView(st, A.id, now0).limits.max, E.UNLIMITED);
+  assert.strictEqual(set({ maxBetMode: 'auto' }).maxBet, 1000);
+});
+
+// draw order: A1 B1 dealer-up A2 B2 dealer-hole
+function insuranceTable(cards) {
+  const st = table();
+  rig(st, cards);
+  E.applyAction(st, A, { type: 'bet', amount: 100 }, now0);
+  E.applyAction(st, B, { type: 'bet', amount: 100 }, now0);
+  return st;
+}
+const finish = (st) => E.tick(st, now0 + 20_000);
+
+test('insurance: offered on a dealer Ace, pays 2:1 when the dealer has blackjack', () => {
+  const st = insuranceTable(['9S', '8S', 'AH', '7D', '8D', 'KC']);
+  assert.ok(st.ins, 'insurance is offered');
+  assert.strictEqual(st.turn, null);
+  assert.throws(() => E.applyAction(st, A, { type: 'hit' }, now0), /turn/i);
+  assert.deepStrictEqual(E.buildView(st, A.id, now0).insYou, { even: false, max: 50, done: false });
+  E.applyAction(st, A, { type: 'insure', amount: 999 }, now0); // capped at half the bet
+  assert.strictEqual(st.insAmt[0], 50);
+  assert.strictEqual(st.balances[0], 850);
+  assert.throws(() => E.applyAction(st, A, { type: 'insure', amount: 10 }, now0), /already/i);
+  E.applyAction(st, B, { type: 'insure', amount: 0 }, now0); // decline
+  assert.strictEqual(st.ins, null);
+  finish(st);
+  assert.strictEqual(st.balances[0], 1000); // lost the hand (-100) but insurance paid +100
+  assert.strictEqual(st.balances[1], 900);
+  assert.strictEqual(st.history.at(-1).seats[0].net, 0);
+});
+
+test('insurance: lost when the dealer has no blackjack, hand plays on', () => {
+  const st = insuranceTable(['9S', '8S', 'AH', '7D', '8D', '5C']);
+  E.applyAction(st, A, { type: 'insure', amount: 50 }, now0);
+  E.applyAction(st, B, { type: 'insure', amount: 0 }, now0);
+  assert.deepStrictEqual(st.turn, { seat: 0, hand: 0 });
+  assert.strictEqual(st.balances[0], 850);
+  E.applyAction(st, A, { type: 'stand_hand', seq: st.seq }, now0);
+  E.applyAction(st, B, { type: 'stand_hand', seq: st.seq }, now0);
+  finish(st); // dealer A+5 draws up to 17+, players have 16 / 15
+  assert.ok(st.history.at(-1).seats[0].net <= -50 || st.history.at(-1).seats[0].net >= -50);
+  assert.strictEqual(st.insNet[0], -50);
+});
+
+test('even money: a natural blackjack takes a guaranteed 1:1', () => {
+  const st = insuranceTable(['AS', '8S', 'AH', 'KS', '8D', '9C']); // A natural, dealer A+9
+  assert.deepStrictEqual(E.buildView(st, A.id, now0).insYou, { even: true, max: 50, done: false });
+  E.applyAction(st, A, { type: 'insure', take: true }, now0);
+  E.applyAction(st, B, { type: 'insure', amount: 0 }, now0);
+  E.applyAction(st, B, { type: 'stand_hand', seq: st.seq }, now0);
+  finish(st);
+  assert.strictEqual(st.balances[0], 1100);
+  assert.strictEqual(st.history.at(-1).seats[0].hands[0].net, 100);
+});
+
+test('insurance: unanswered offers are declined by the timer', () => {
+  const st = insuranceTable(['9S', '8S', 'AH', '7D', '8D', 'KC']);
+  E.tick(st, now0 + 40_000);
+  assert.strictEqual(st.ins, null);
+  assert.strictEqual(st.insAmt[0], 0);
+  assert.strictEqual(st.balances[0], 900);
+});
+
+test('insurance: a forfeit during the offer refunds the stakes', () => {
+  const st = insuranceTable(['9S', '8S', 'AH', '7D', '8D', 'KC']);
+  E.applyAction(st, A, { type: 'insure', amount: 50 }, now0);
+  E.applyAction(st, B, { type: 'forfeit' }, now0);
+  assert.strictEqual(st.balances[0], 1000); // bet and insurance both returned
+});
+
+test('unlimited max bet: any amount up to your stack, never more', () => {
+  const st = table({ startingBalance: 5000, maxBetMode: 'unlimited' });
+  assert.strictEqual(st.settings.maxBetMode, 'unlimited');
+  E.applyAction(st, A, { type: 'bet', amount: 4000 }, now0);
+  assert.strictEqual(st.balances[0], 1000);
+  assert.throws(() => E.applyAction(st, B, { type: 'bet', amount: 5001 }, now0), /bet/i);
+  E.applyAction(st, B, { type: 'bet', amount: 5000 }, now0); // all in
+  assert.strictEqual(st.balances[1], 0);
 });
