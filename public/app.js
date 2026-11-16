@@ -262,8 +262,20 @@ function showLogin(msg) {
   $('#inName').value = S.name || '';
   $('#inRoom').value = new URLSearchParams(location.search).get('room') || LS.get('bj.room') || '';
   $('#inPass').value = '';
-  (S.name ? $('#inPass') : $('#inName')).focus();
+  setStep('pass');
 }
+// login is two steps: master password first, then name + room
+function setStep(step) {
+  S.step = step;
+  $('#stepPass').classList.toggle('hidden', step !== 'pass');
+  $('#stepUser').classList.toggle('hidden', step !== 'user');
+  $('#inName').required = step === 'user';
+  $('#inPass').required = step === 'pass';
+  $('#loginTxt').textContent = step === 'pass' ? 'Continue' : 'Enter the casino';
+  $('#loginErr').textContent = '';
+  setTimeout(() => (step === 'pass' ? $('#inPass') : $('#inName')).focus(), 0);
+}
+$('#backPass').addEventListener('click', () => { $('#inPass').value = ''; setStep('pass'); });
 
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -271,6 +283,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   btn.disabled = true; $('#loginErr').textContent = '';
   $('#loginSpin').classList.remove('hidden'); $('#loginTxt').textContent = 'Checking…';
   try {
+    if (S.step === 'pass') { await post('/api/login', { check: true, password: $('#inPass').value }); setStep('user'); return; }
     const r = await post('/api/login', { name: $('#inName').value, password: $('#inPass').value, id: S.id });
     S.token = r.token; S.id = r.id; S.name = r.name;
     S.room = ($('#inRoom').value || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
@@ -279,8 +292,9 @@ $('#loginForm').addEventListener('submit', async (e) => {
     await enter();
   } catch (err) {
     $('#loginErr').textContent = err.message;
+    if (S.step === 'user' && err.status === 401) setStep('pass');
     const c = $('.login-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
-  } finally { btn.disabled = false; $('#loginSpin').classList.add('hidden'); $('#loginTxt').textContent = 'Enter the casino'; }
+  } finally { btn.disabled = false; $('#loginSpin').classList.add('hidden'); $('#loginTxt').textContent = S.step === 'pass' ? 'Continue' : 'Enter the casino'; }
 });
 
 async function enter() {
