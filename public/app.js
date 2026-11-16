@@ -751,7 +751,7 @@ function renderLobby(v) {
     set('#sH17', st.h17 ? '1' : '0');
     $('#sBlitz').checked = !!st.blitz;
     $$('#modeSel button').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.mode));
-    $('#modeDesc').textContent = MODES[st.mode].desc;
+    $('#modeDesc').textContent = (MODES[st.mode] || MODES.duel).desc;
     $('#settings').dataset.mode = st.mode;
     $('#sRounds').options[0].textContent = st.mode === 'duel' ? 'Until broke' : 'Until one left';
   }
