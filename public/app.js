@@ -668,30 +668,35 @@ function renderChips(v) {
   for (const d of list) {
     const b = document.createElement('button');
     b.className = `chip ${chipClass(d)}`; b.dataset.v = d; b.innerHTML = `<span>${short(d)}</span>`;
-    b.addEventListener('click', () => { S.pending = Math.min(cap, S.pending + d); sfx.chip(); updateChipState(S.view); });
+    b.addEventListener('click', () => { S.allIn = false; S.pending = Math.min(cap, S.pending + d); sfx.chip(); updateChipState(S.view); });
     row.appendChild(b);
   }
   updateChipState(v);
 }
 function updateChipState(v) {
-  const cap = betCap(v), min = v.limits.min;
-  S.pending = Math.max(0, Math.min(cap, S.pending));
-  $('#betAmt').textContent = fmt(S.pending);
-  $$('#chipRow .chip').forEach((c) => (c.disabled = S.pending + +c.dataset.v > cap));
-  $('#placeBet').disabled = S.pending < min || S.pending > cap;
+  const cap = betCap(v), min = v.limits.min, me = v.seats[v.you.seat];
+  if (S.allIn && me && me.alive && me.balance > 0) S.pending = me.balance; // all in ignores the table max
+  else { S.allIn = false; S.pending = Math.max(0, Math.min(cap, S.pending)); }
+  $('#betAmt').textContent = S.allIn ? `${fmt(S.pending)} · ALL IN` : fmt(S.pending);
+  $('#bAllIn').classList.toggle('on', !!S.allIn);
+  $('#bAllIn').disabled = !(me && me.alive && me.balance > 0);
+  $$('#chipRow .chip').forEach((c) => (c.disabled = S.allIn || S.pending + +c.dataset.v > cap));
+  $('#placeBet').disabled = S.allIn ? false : S.pending < min || S.pending > cap;
   $('#bLast').disabled = !(v.seats[v.you.seat] && v.seats[v.you.seat].lastBet);
 }
 function placeBet() {
   const v = S.view;
   if (!v || $('#placeBet').disabled || !dock.bet.classList.contains('on')) return;
   act('bet', { amount: S.pending });
+  S.allIn = false;
 }
 $('#placeBet').addEventListener('click', placeBet);
-$('#bClear').addEventListener('click', () => { S.pending = 0; updateChipState(S.view); });
-$('#bHalf').addEventListener('click', () => { S.pending = Math.max(S.view.limits.min, Math.floor(S.pending / 2)); updateChipState(S.view); });
-$('#bDouble').addEventListener('click', () => { S.pending = S.pending * 2 || S.view.limits.min; updateChipState(S.view); });
-$('#bMax').addEventListener('click', () => { S.pending = betCap(S.view); sfx.chip(); updateChipState(S.view); });
-$('#bLast').addEventListener('click', () => { const me = S.view.seats[S.view.you.seat]; S.pending = me.lastBet; updateChipState(S.view); });
+$('#bClear').addEventListener('click', () => { S.allIn = false; S.pending = 0; updateChipState(S.view); });
+$('#bHalf').addEventListener('click', () => { S.allIn = false; S.pending = Math.max(S.view.limits.min, Math.floor(S.pending / 2)); updateChipState(S.view); });
+$('#bDouble').addEventListener('click', () => { S.allIn = false; S.pending = S.pending * 2 || S.view.limits.min; updateChipState(S.view); });
+$('#bMax').addEventListener('click', () => { S.allIn = false; S.pending = betCap(S.view); sfx.chip(); updateChipState(S.view); });
+$('#bAllIn').addEventListener('click', () => { S.allIn = !S.allIn; if (S.allIn) sfx.chip(); updateChipState(S.view); });
+$('#bLast').addEventListener('click', () => { S.allIn = false; const me = S.view.seats[S.view.you.seat]; S.pending = me.lastBet; updateChipState(S.view); });
 
 const playBtn = { hit: $('#aHit'), stand_hand: $('#aStand'), double: $('#aDouble'), split: $('#aSplit') };
 let acting = false;
@@ -731,7 +736,7 @@ function renderDock(v) {
       if (S.betRound !== v.round) {
         S.betRound = v.round; S.sig.chips = '';
         const cap = betCap(v);
-        S.pending = Math.min(cap, Math.max(v.limits.min, mine.lastBet || v.limits.min));
+        S.allIn = false; S.pending = Math.min(cap, Math.max(v.limits.min, mine.lastBet || v.limits.min));
       }
       renderChips(v);
       setDock('bet');
@@ -1048,7 +1053,25 @@ function renderChat(v) {
   if (near || last === 0) box.scrollTop = box.scrollHeight;
 }
 const desktop = () => matchMedia('(min-width:1181px)').matches;
-function renderUnread() { const u = $('#unread'); u.textContent = S.unread > 99 ? '99+' : S.unread || ''; u.classList.toggle('on', S.unread > 0); }
+// desktop: "Recent rounds" lives in the right panel next to Chat (tabs); narrow screens keep it as its own tab below the table
+function placeRounds() {
+  const r = document.querySelector('section.rounds'), chat = $('aside.chat'), main = $('.main');
+  if (desktop()) { if (r.parentNode !== chat) chat.insertBefore(r, $('#msgs')); }
+  else { chat.dataset.pane = 'chat'; if (r.parentNode !== main) main.appendChild(r); }
+}
+function setPane(p) {
+  const chat = $('aside.chat'); chat.dataset.pane = p;
+  $$('.ptabs button').forEach((b) => b.classList.toggle('on', b.dataset.pane === p));
+  if (p === 'chat') { S.unread = 0; renderUnread(); const m = $('#msgs'); m.scrollTop = m.scrollHeight; }
+}
+$('.ptabs').addEventListener('click', (e) => { const b = e.target.closest('[data-pane]'); if (b) setPane(b.dataset.pane); });
+matchMedia('(min-width:1181px)').addEventListener('change', placeRounds);
+placeRounds();
+function renderUnread() {
+  const txt = S.unread > 99 ? '99+' : S.unread || '';
+  const u = $('#unread'); u.textContent = txt; u.classList.toggle('on', S.unread > 0);
+  const t = $('#tabUnread'); t.textContent = txt; t.classList.toggle('on', S.unread > 0 && $('aside.chat').dataset.pane === 'rounds');
+}
 function setChat(collapsed) {
   document.body.classList.toggle('chat-collapsed', collapsed);
   try { LS.set('bj.chatc', collapsed ? '1' : ''); } catch { /* ignore */ }

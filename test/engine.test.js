@@ -498,3 +498,16 @@ test('random play across all modes keeps balances sane and showdown zero-sum', (
     }
   }
 });
+
+test('all in: whole stack is allowed above the max bet, other oversize bets are not', () => {
+  const st = table({ startingBalance: 5000, minBet: 10, maxBet: 100 });
+  const seat = st.first, other = 1 - seat;
+  const uid = (s) => (s === 0 ? A : B);
+  assert.throws(() => E.applyAction(st, uid(seat), { type: 'bet', amount: 4999 }, now0), /Bet must be/);
+  assert.throws(() => E.applyAction(st, uid(seat), { type: 'bet', amount: 101 }, now0), /Bet must be/);
+  E.applyAction(st, uid(seat), { type: 'bet', amount: 5000 }, now0);
+  assert.strictEqual(st.balances[seat], 0);
+  assert.strictEqual(st.bets[seat], 5000);
+  E.applyAction(st, uid(other), { type: 'bet', amount: 50 }, now0);
+  assert.strictEqual(st.phase === 'playing' || st.phase === 'settled' || st.phase === 'dealer', true, 'round continues after an all-in');
+});

@@ -81,7 +81,8 @@
         <svg class="arcs" viewBox="0 0 1000 340" aria-hidden="true"><defs><path id="arcA" d="M70,50 Q500,290 930,50"/><path id="arcB" d="M120,112 Q500,326 880,112"/></defs>
           <path class="arcline" d="M30,14 Q500,330 970,14"/><text class="arc-t1"><textPath href="#arcA" startOffset="50%" text-anchor="middle" id="ftPay2"></textPath></text><text class="arc-t2"><textPath href="#arcB" startOffset="50%" text-anchor="middle" id="ftRule2"></textPath></text></svg>
         <button class="btn ghost sm forfeit" id="forfeitBtn"><span data-ic="flag"></span>Forfeit</button>
-        <div class="shoe" id="shoe"><div class="shoe-cards"><i></i><i></i><i></i></div><span id="shoeCount"></span></div>
+        <div class="chiprack" aria-hidden="true"><i style="--c:#64748b"></i><i style="--c:#ef4444"></i><i style="--c:#3b82f6"></i><i style="--c:#16a34a"></i><i style="--c:#f97316"></i><i style="--c:#9333ea"></i><i style="--c:#db2777"></i><i style="--c:#ca8a04"></i></div>
+        <div class="shoe" id="shoe"><div class="shoe-box"><i class="sb-card"></i><i class="sb-card sb2"></i></div><span id="shoeCount"></span></div>
         <div class="dealer-zone">
           <div class="dealer-label"><span>DEALER</span><span class="total" id="dealerTotal"></span></div>
           <div class="cards" id="dealerCards"></div>
@@ -127,7 +128,7 @@
             <div class="bet-ctl">
               <div class="bet-amt"><span>Your bet</span><b id="betAmt">0</b></div>
               <div class="mini-row">
-                <button class="btn mini" id="bClear">Clear</button><button class="btn mini" id="bHalf">½</button><button class="btn mini" id="bDouble">2×</button><button class="btn mini" id="bMax">Max</button><button class="btn mini" id="bLast">Last</button>
+                <button class="btn mini" id="bClear">Clear</button><button class="btn mini" id="bHalf">½</button><button class="btn mini" id="bDouble">2×</button><button class="btn mini" id="bMax">Max</button><button class="btn mini allin" id="bAllIn">All in</button><button class="btn mini" id="bLast">Last</button>
               </div>
             </div>
           </div>
@@ -159,8 +160,8 @@
     </section>
   </main>
 
-  <aside class="chat panel" data-tabpanel="chat">
-    <div class="panel-h"><h3><span data-ic="message-circle"></span>Table chat</h3><button class="icon-btn sm" id="chatToggle" title="Collapse chat" aria-label="Collapse chat" data-ic="chevrons-right"></button></div>
+  <aside class="chat panel" data-tabpanel="chat" data-pane="chat">
+    <div class="panel-h"><h3 class="only-m"><span data-ic="message-circle"></span>Table chat</h3><div class="ptabs" role="tablist"><button type="button" class="on" data-pane="chat"><span data-ic="message-circle"></span>Chat<i class="tab-unread" id="tabUnread"></i></button><button type="button" data-pane="rounds"><span data-ic="history"></span>Rounds</button></div><button class="icon-btn sm" id="chatToggle" title="Collapse chat" aria-label="Collapse chat" data-ic="chevrons-right"></button></div>
     <div class="msgs" id="msgs"></div>
     <div class="emotes"><button>🔥</button><button>💀</button><button>🤡</button><button>🍀</button><button>😭</button><button>🫡</button></div>
     <form class="chat-in" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="240" placeholder="Talk your talk…"><button class="btn primary mini" type="submit">Send</button></form>
