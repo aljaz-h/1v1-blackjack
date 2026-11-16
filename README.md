@@ -78,6 +78,8 @@ test/              engine unit tests, end-to-end bot match, fake Upstash
 Font: [Geist](https://vercel.com/font) (SIL OFL, self-hosted in `public/fonts/`).
 Avatars: players pick a color and icon (click your name in the header, or "Avatar" in the lobby); stored in the room and remembered in the browser.
 
+Characters: [DiceBear](https://www.dicebear.com) (MIT) styles Lorelei, Open Peeps, Pixel Art (CC0) and Bottts (free for commercial use), pre-rendered to `public/avatars/` (see `public/avatars/LICENSES.txt`; regenerate with `node scripts/build-avatars.js`).
+
 Icons: [Iconify](https://iconify.design) sets Lucide (ISC), Material Line Icons and SVG Spinners (MIT), baked into `public/icons.js` (see `public/ICON-LICENSES.txt`; regenerate with `node scripts/build-icons.js`).
 
 Play money only. Gamble responsibly, even if it's fake chips.

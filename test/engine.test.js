@@ -268,6 +268,10 @@ test('avatar profiles: validation, view data and same-color fallback', () => {
   E.applyAction(st, A, { type: 'profile', color: '#FF0000', icon: 'crown' }, now0);
   assert.throws(() => E.applyAction(st, A, { type: 'profile', color: 'red' }, now0), /color/i);
   assert.throws(() => E.applyAction(st, A, { type: 'profile', icon: '<img>' }, now0), /icon/i);
+  assert.throws(() => E.applyAction(st, A, { type: 'profile', icon: 'lorelei:16' }, now0), /icon/i);
+  assert.throws(() => E.applyAction(st, A, { type: 'profile', icon: '../x:1' }, now0), /icon/i);
+  E.applyAction(st, B, { type: 'profile', color: null, icon: 'bottts:7' }, now0);
+  assert.strictEqual(E.buildView(st, A.id, now0).seats[1].icon, 'bottts:7');
   E.applyAction(st, B, { type: 'profile', color: '#ff0000', icon: null }, now0);
   const v = E.buildView(st, A.id, now0);
   assert.strictEqual(v.seats[0].color, '#ff0000');

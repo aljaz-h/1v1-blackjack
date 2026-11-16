@@ -20,7 +20,9 @@ const COLORS = ['#38bdf8', '#e879f9', '#f87171', '#fb923c', '#fbbf24', '#a3e635'
 const ICONS = ['crown', 'skull', 'flame', 'ghost', 'rocket', 'zap', 'gem', 'cat', 'dog', 'bot', 'clover', 'star', 'bird', 'fish', 'spade', 'dices'];
 const fgFor = (c) => { const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c || ''); if (!m) return '#111214'; const l = (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) / 255; return l > 0.55 ? '#111214' : '#ffffff'; };
 const colorOf = (name, seat) => (PROF[name] && PROF[name].color) || (seat >= 0 ? seatColor(seat) : `hsl(${hue(name)} 80% 70%)`);
-const avatarInner = (name) => (PROF[name] && PROF[name].icon ? ic(PROF[name].icon) : esc((name[0] || '?').toUpperCase()));
+const iconHtml = (id) => (id.includes(':') ? `<img src="/avatars/${id.replace(':', '-')}.svg" alt="" draggable="false" loading="lazy">` : ic(id));
+const avatarInner = (name) => (PROF[name] && PROF[name].icon ? iconHtml(PROF[name].icon) : esc((name[0] || '?').toUpperCase()));
+const CHAR_STYLES = [['', 'Icons'], ['lorelei', 'Lorelei'], ['openpeeps', 'Peeps'], ['pixelart', 'Pixel'], ['bottts', 'Bots']];
 const styleFor = (name, seat) => { const c = colorOf(name, seat); return `--c:${c};--fg:${fgFor(c)}`; };
 const avatar = (name, seat, cls = '') => `<span class="avatar ${cls}" style="${styleFor(name, seat)}">${avatarInner(name)}</span>`;
 function setAvatar(el, name, seat) {
@@ -625,17 +627,27 @@ $('#lobbySeats').addEventListener('click', (e) => {
 const PF = { color: null, icon: null };
 function openProfile() {
   const cur = PROF[S.name] || {};
-  PF.color = cur.color || null; PF.icon = cur.icon || null;
+  PF.color = cur.color || null; PF.icon = cur.icon || null; S.pfTab = null;
   $('#pfColors').innerHTML = COLORS.map((c) => `<button type="button" class="sw" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('') +
     `<label class="sw custom" title="Custom color">${ic('plus')}<input type="color" id="pfCustom" value="${PF.color || '#38bdf8'}"></label>`;
-  $('#pfIcons').innerHTML = `<button type="button" class="ib" data-i="">${esc((S.name[0] || '?').toUpperCase())}</button>` + ICONS.map((n) => `<button type="button" class="ib" data-i="${n}">${ic(n)}</button>`).join('');
+  PF.tab = PF.icon && PF.icon.includes(':') ? PF.icon.split(':')[0] : '';
+  $('#pfTabs').innerHTML = CHAR_STYLES.map(([k, l]) => `<button type="button" class="tab" data-t="${k}">${l}</button>`).join('');
   $('#profile').classList.add('on');
   paintProfile();
 }
+function paintIcons() {
+  const t = PF.tab;
+  $('#pfIcons').className = 'icons' + (t ? ' chars' : '');
+  $('#pfIcons').innerHTML = t
+    ? Array.from({ length: 16 }, (_, n) => `<button type="button" class="ib" data-i="${t}:${n}">${iconHtml(t + ':' + n)}</button>`).join('')
+    : `<button type="button" class="ib" data-i="">${esc((S.name[0] || '?').toUpperCase())}</button>` + ICONS.map((n) => `<button type="button" class="ib" data-i="${n}">${ic(n)}</button>`).join('');
+}
 function paintProfile() {
   const c = PF.color || colorOf(S.name, S.view && S.view.you.seat);
-  $('#pfPrev').setAttribute('style', `--c:${c};--fg:${fgFor(c)}`);
-  $('#pfPrev').innerHTML = PF.icon ? ic(PF.icon) : esc((S.name[0] || '?').toUpperCase());
+  $('#pfPrev').setAttribute('style', `--c:${c};--fg:${fgFor(c)}`); $('#pfIcons').style.setProperty('--pfc', c);
+  $('#pfPrev').innerHTML = PF.icon ? iconHtml(PF.icon) : esc((S.name[0] || '?').toUpperCase());
+  $$('#pfTabs .tab').forEach((b) => b.classList.toggle('sel', b.dataset.t === PF.tab));
+  if (S.pfTab !== PF.tab) { S.pfTab = PF.tab; paintIcons(); }
   $$('#pfColors .sw[data-c]').forEach((b) => b.classList.toggle('sel', b.dataset.c === PF.color));
   $$('#pfIcons .ib').forEach((b) => b.classList.toggle('sel', (b.dataset.i || null) === PF.icon));
   const v = S.view, me = v ? v.you.seat : -1, opp = me >= 0 ? v.seats[1 - me] : null;
@@ -644,8 +656,9 @@ function paintProfile() {
 }
 $('#profile').addEventListener('click', (e) => {
   if (e.target === $('#profile') || e.target.closest('#pfCancel')) { $('#profile').classList.remove('on'); return; }
-  const sw = e.target.closest('.sw[data-c]'), ib = e.target.closest('.ib');
-  if (sw) PF.color = sw.dataset.c;
+  const sw = e.target.closest('.sw[data-c]'), ib = e.target.closest('.ib'), tb = e.target.closest('.tab');
+  if (tb) PF.tab = tb.dataset.t;
+  else if (sw) PF.color = sw.dataset.c;
   else if (ib) PF.icon = ib.dataset.i || null;
   else if (e.target.closest('#pfReset')) { PF.color = null; PF.icon = null; }
   else if (e.target.closest('#pfSave')) {

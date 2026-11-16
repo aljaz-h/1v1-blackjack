@@ -458,3 +458,13 @@ h3 .ic{font-size:14px;color:var(--dim)}
 .ib.sel{border-color:#fff;background:#3a3d44}
 .pf-warn{color:var(--amber);font-size:12px;min-height:16px;margin-top:10px}
 .pf-foot{display:flex;gap:8px;align-items:center;margin-top:10px}
+.avatar{overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block;user-select:none;pointer-events:none}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tab{padding:5px 12px;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);color:var(--dim);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.tab.sel{color:#111214;background:#ececec;border-color:#ececec}
+.icons.chars{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+.icons.chars .ib{width:100%;height:auto;aspect-ratio:1;border-radius:50%;padding:0;overflow:hidden;background:var(--pfc,var(--panel2))}
+.ib img{width:100%;height:100%;display:block}
+.modal-card{width:min(460px,100%)}
+.icons.chars .ib.sel{background:var(--pfc,var(--panel2));border-color:#fff;box-shadow:0 0 0 2px var(--panel)}
