@@ -75,4 +75,6 @@ public/            the whole UI (vanilla JS, no build step)
 test/              engine unit tests, end-to-end bot match, fake Upstash
 ```
 
+Font: [Geist](https://vercel.com/font) (SIL OFL, self-hosted in `public/fonts/`).
+
 Play money only. Gamble responsibly, even if it's fake chips.

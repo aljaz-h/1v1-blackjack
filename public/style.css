@@ -1,10 +1,11 @@
+@font-face{font-family:'Geist';src:url('/fonts/Geist-Variable.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
 :root{
   --bg:#17181a; --bg2:#1c1d20; --panel:#202225; --panel2:#2a2c30; --line:#303338; --line2:#3d4147;
   --txt:#ececec; --dim:#a1a5ac; --mute:#6e737b;
   --cyan:#38bdf8; --blue:#3b82f6; --pink:#e879f9; --violet:#a78bfa; --green:#22c55e; --red:#ef4444; --amber:#fbbf24;
   --s0:#38bdf8; --s1:#e879f9;
   --r:14px; --cw:78px;
-  --font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
