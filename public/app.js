@@ -62,11 +62,11 @@ const isRed = (c) => c && (c.endsWith('H') || c.endsWith('D'));
 // Soft, warm sound design: everything goes through a gentle low-pass, a soft limiter and a touch of room reverb.
 // `getCtx()` returns the AudioContext to play into (an OfflineAudioContext in tests); `isMuted()` gates playback.
 function createSfx(getCtx, isMuted) {
-  let bus = null, busCtx = null, noiseBuf = null;
+  let bus = null, busCtx = null, noiseBuf = null, masterNode = null, vol = 1;
   function chain(c) {
     if (bus && busCtx === c) return bus;
     busCtx = c;
-    const master = c.createGain(); master.gain.value = 3.2;
+    const master = c.createGain(); master.gain.value = 3.2 * vol; masterNode = master;
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6500; lp.Q.value = 0.4;
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 20; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
     master.connect(lp); lp.connect(comp); comp.connect(c.destination);
@@ -113,6 +113,7 @@ function createSfx(getCtx, isMuted) {
     // card slid across felt: soft swish + a muted thump
     deal(t = 0) { swish(t, 0.11, { gain: 0.22, from: jit(1200, .15), to: jit(2800, .15), q: 0.6, hp: 400 }); click(jit(150, .1), t + 0.07, 0.06, 0.12); },
     // card turned over: short papery flick
+    setVolume(v) { vol = v; if (masterNode) masterNode.gain.value = 3.2 * v; },
     flip(t = 0) { swish(t, 0.06, { gain: 0.2, from: 2600, to: 1500, q: 0.9, hp: 900 }); click(jit(300, .06), t + 0.03, 0.05, 0.08); },
     // clay chips: two quick damped clicks
     chip() { const f = jit(2100, .08); click(f, 0, 0.035, 0.11); click(f * 0.72, 0.012, 0.05, 0.1); click(jit(f * 1.1, .05), 0.055, 0.03, 0.08); },
@@ -127,18 +128,21 @@ function createSfx(getCtx, isMuted) {
   };
 }
 const sfx = (() => {
-  let ctx = null, muted = LS.get('bj.mute') === '1';
+  let ctx = null, muted = LS.get('bj.mute') === '1', level = Math.min(100, Math.max(0, +(LS.get('bj.vol') ?? 70)));
   function ensure() {
     if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ctx = new AC(); }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
   const inner = createSfx(() => ensure(), () => muted);
+  inner.setVolume(Math.pow(level / 100, 2)); // squared: feels linear to the ear
   return {
     ...inner,
     unlock: ensure,
     get muted() { return muted; },
     setMuted(m) { muted = m; LS.set('bj.mute', m ? '1' : '0'); },
+    get level() { return level; },
+    setLevel(l) { level = l; LS.set('bj.vol', String(l)); inner.setVolume(Math.pow(l / 100, 2)); },
   };
 })();
 ['pointerdown', 'keydown'].forEach((e) => addEventListener(e, () => sfx.unlock(), { once: true, passive: true }));
@@ -180,7 +184,7 @@ function shoeOffset(el) {
 }
 // little coins flying between two elements (WAAPI, removed when done)
 function flyCoins(fromEl, toEl, n, { onLand } = {}) {
-  if (S.instant || REDUCED.matches || !fromEl || !toEl) return;
+  if (S.instant || !fromEl || !toEl) return;
   const a0 = centerOf(fromEl), b0 = centerOf(toEl);
   for (let k = 0; k < n; k++) {
     const d = document.createElement('i'); d.className = 'flycoin';
@@ -430,8 +434,24 @@ $('#roomPill').addEventListener('click', async () => {
   const url = `${location.origin}${location.pathname}?room=${S.room}`;
   try { await navigator.clipboard.writeText(url); toast('Invite link copied', 'ok'); } catch { toast(url); }
 });
-function soundIcon() { $('#soundBtn').innerHTML = ic(sfx.muted ? 'volume-x' : 'volume-2'); }
-$('#soundBtn').addEventListener('click', () => { sfx.setMuted(!sfx.muted); soundIcon(); sfx.unlock(); sfx.chip(); });
+function soundIcon() {
+  const off = sfx.muted || sfx.level === 0;
+  $('#soundBtn').innerHTML = ic(off ? 'volume-x' : 'volume-2');
+  $('#volRange').value = off ? 0 : sfx.level;
+  $('#volRange').style.setProperty('--p', ($('#volRange').value) + '%');
+}
+const touchUI = matchMedia('(hover: none)');
+$('#soundBtn').addEventListener('click', () => {
+  if (touchUI.matches) { $('#vol').classList.toggle('open'); sfx.unlock(); return; } // phones: open the slider
+  if (sfx.level === 0) sfx.setLevel(70);
+  sfx.setMuted(!sfx.muted); soundIcon(); sfx.unlock(); sfx.chip();
+});
+let volTick = 0;
+$('#volRange').addEventListener('input', (e) => {
+  const l = +e.target.value; sfx.setLevel(l); sfx.setMuted(l === 0); soundIcon(); sfx.unlock();
+  if (performance.now() - volTick > 160) { volTick = performance.now(); sfx.chip(); } // audible feedback while dragging
+});
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#vol')) $('#vol').classList.remove('open'); });
 $$('.mtabs button').forEach((b) => b.addEventListener('click', () => {
   document.body.dataset.tab = b.dataset.t;
   $$('.mtabs button').forEach((x) => x.classList.toggle('on', x === b));
@@ -444,7 +464,7 @@ function cardFront(c) {
   const r = c.slice(0, -1), s = SYM[c.slice(-1)], face = 'JQK'.includes(r);
   return `<span class="c tl"><b>${r}</b><i>${s}</i></span><div class="mid${face ? ' face-l' : ''}">${face ? `${r}<small>${s}</small>` : s}</div><span class="c br"><b>${r}</b><i>${s}</i></span>`;
 }
-const DEAL_MS = 620, DEAL_GAP = 280; // flight time of one card, and the pause between cards
+const DEAL_MS = 800, DEAL_GAP = 400; // flight time of one card, and the pause between cards
 function makeCard(c, animate, delay) {
   const n = document.createElement('div');
   n.className = 'card' + (isRed(c) ? ' red' : '');

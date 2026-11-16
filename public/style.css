@@ -195,7 +195,7 @@ h3{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute
 .card .mid{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw)*.55);padding-top:calc(var(--cw)*.05)}
 .card .mid.face-l{font-size:calc(var(--cw)*.5);font-weight:900}
 .card .mid.face-l small{position:absolute;bottom:18%;font-size:.32em}
-.card.deal{animation:deal .62s cubic-bezier(.22,.8,.3,1) both;animation-delay:var(--d,0ms);z-index:5}
+.card.deal{animation:deal .8s cubic-bezier(.22,.8,.3,1) both;animation-delay:var(--d,0ms);z-index:5}
 @keyframes deal{0%{transform:translate(var(--fx,160px),var(--fy,-240px)) rotate(var(--fr,24deg)) scale(.5);opacity:0;filter:brightness(.8)}10%{opacity:1}55%{transform:translate(calc(var(--fx,0px)*.14),calc(var(--fy,0px)*.14 - 14px)) rotate(5deg) scale(1.08)}78%{transform:translate(0,3px) rotate(-1.6deg) scale(.98)}100%{transform:none;opacity:1;filter:none}}
 .card.lift{animation:lift .6s cubic-bezier(.3,.7,.3,1)}
 @keyframes lift{35%{transform:translateY(-16px) scale(1.14);filter:drop-shadow(0 14px 14px rgba(0,0,0,.5))}}
@@ -321,7 +321,8 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
   .shoe{display:none}
   .lseat{min-height:96px;padding:8px}
 }
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+/* reduced motion: no endless loops, but keep the one-shot game animations (deal, flip, chips) */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-iteration-count:1!important}}
 
 .seat.empty>*:not(.emptytxt){display:none}
 .emptytxt{display:none;font-weight:700;letter-spacing:.06em;font-size:12px}
@@ -718,3 +719,13 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 .pause-ic{font-size:30px;color:var(--cyan,#38bdf8)}
 .dock.frozen{opacity:.45;pointer-events:none}
 @keyframes pauseIn{from{opacity:0}to{opacity:1}}
+
+/* volume control */
+.vol{position:relative;display:flex;align-items:center}
+.volpop{position:absolute;top:calc(100% + 8px);right:-6px;z-index:60;width:150px;padding:10px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line2);box-shadow:0 14px 34px rgba(0,0,0,.5);opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s,visibility .15s}
+.vol:hover .volpop,.vol:focus-within .volpop,.vol.open .volpop{opacity:1;visibility:visible;transform:none}
+.volpop::before{content:"";position:absolute;left:0;right:0;top:-10px;height:10px}
+#volRange{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;outline:none;cursor:pointer;background:linear-gradient(90deg,var(--accent,#8b5cf6) var(--p,70%),rgba(255,255,255,.14) var(--p,70%))}
+#volRange::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+#volRange::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.topbar{position:relative;z-index:50}
