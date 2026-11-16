@@ -279,3 +279,199 @@ test('avatar profiles: validation, view data and same-color fallback', () => {
   assert.strictEqual(v.seats[1].color, null); // clashes with seat 1 -> default
   assert.strictEqual(v.seats[1].icon, null);
 });
+
+/* ---------------- game modes ---------------- */
+const C = { id: 'c1', name: 'Cara' };
+const D = { id: 'd1', name: 'Dan' };
+function tableN(users, settings = {}) {
+  const st = E.newRoom('m', now0);
+  users.forEach((u, i) => {
+    E.applyAction(st, u, { type: 'join' }, now0);
+    E.applyAction(st, u, { type: 'sit', seat: i }, now0);
+    if (i === 0) E.applyAction(st, u, { type: 'settings', settings }, now0); // mode decides how many seats exist
+  });
+  for (const u of users) E.applyAction(st, u, { type: 'ready', value: true }, now0);
+  return st;
+}
+const bet = (st, u, amount) => E.applyAction(st, u, { type: 'bet', amount }, now0);
+const stand = (st, u) => E.applyAction(st, u, { type: 'stand_hand', seq: st.seq }, now0);
+
+test('classic: three players play against the dealer and rotate who acts first', () => {
+  const st = tableN([A, B, C], { mode: 'classic' });
+  assert.strictEqual(st.phase, 'betting');
+  assert.strictEqual(st.first, 0);
+  rig(st, ['10S', '10H', '10D', '7H', '9S', '8H', '10C', '10D']); // A19 B18 C20, dealer 17
+  for (const u of [A, B, C]) bet(st, u, 100);
+  assert.strictEqual(st.phase, 'playing');
+  assert.deepStrictEqual(st.turn, { seat: 0, hand: 0 });
+  for (const u of [A, B, C]) stand(st, u);
+  E.tick(st, st.timerAt); // dealer reveal
+  assert.deepStrictEqual(st.balances.slice(0, 3), [1100, 1100, 1100]);
+  E.tick(st, st.timerAt); // intermission
+  assert.strictEqual(st.round, 2);
+  assert.strictEqual(st.first, 1);
+});
+
+test('showdown: side pots, never lose more than your stake, chips conserved', () => {
+  const st = tableN([A, B, C], { mode: 'showdown' });
+  rig(st, ['10S', '10H', '10C', '9S', '10D', '8C']); // A19 B20 C18, no dealer cards
+  bet(st, A, 100);
+  bet(st, B, 50);
+  bet(st, C, 100);
+  assert.strictEqual(st.dealer.cards.length, 0);
+  for (const u of [A, B, C]) stand(st, u);
+  assert.strictEqual(st.phase, 'settled');
+  assert.deepStrictEqual(st.balances.slice(0, 3), [1000, 1100, 900]); // B wins the 150 main pot, A the 100 side pot
+  assert.strictEqual(st.balances[0] + st.balances[1] + st.balances[2], 3000);
+  assert.strictEqual(E.legal(st, 0), null);
+});
+
+test('showdown: no splitting, natural blackjack beats a three-card 21', () => {
+  const st = tableN([A, B], { mode: 'showdown' });
+  rig(st, ['8S', 'AH', '8D', 'KH']); // A 8,8 (pair!)  B A,K blackjack
+  bet(st, A, 100);
+  bet(st, B, 100);
+  assert.strictEqual(st.hands[1][0].bj, true);
+  assert.strictEqual(E.legal(st, 0).split, false);
+  E.applyAction(st, A, { type: 'stand_hand', seq: st.seq }, now0);
+  assert.strictEqual(st.balances[1], 1100); // blackjack wins vs 16
+  assert.strictEqual(st.balances[0], 900);
+});
+
+test('tournament: blinds rise every N rounds and busted-out players are eliminated', () => {
+  const st = tableN([A, B, C], { mode: 'tournament', startingBalance: 100, minBet: 10, maxBet: 100, blindEvery: 3 });
+  assert.deepStrictEqual([E.limits(st, 1).min, E.limits(st, 1).max], [10, 100]);
+  assert.deepStrictEqual([E.limits(st, 4).min, E.limits(st, 4).max], [15, 150]);
+  assert.deepStrictEqual([E.limits(st, 7).min, E.limits(st, 7).max], [23, 225]);
+  rig(st, ['10S', '10H', '10D', '10C', '9S', '9H', '6C', '9D']); // A19 B19 C16, dealer 19
+  bet(st, A, 10);
+  bet(st, B, 10);
+  bet(st, C, 95);
+  for (const u of [A, B, C]) stand(st, u);
+  E.tick(st, st.timerAt);
+  assert.strictEqual(st.balances[2], 5);
+  assert.strictEqual(st.alive[2], false);
+  assert.strictEqual(st.over, null);
+  const out = st.chat.find((m) => m.k === 'out');
+  assert.strictEqual(out.d.place, 3);
+  E.tick(st, st.timerAt);
+  assert.strictEqual(st.round, 2);
+  assert.strictEqual(st.first, 1); // seat 2 is out, rotation skips it
+  assert.throws(() => bet(st, C, 10), /out of this match/);
+});
+
+test('tournament needs three players, duel exactly two, classic up to six', () => {
+  const st = E.newRoom('cap', now0);
+  for (const u of [A, B]) {
+    E.applyAction(st, u, { type: 'join' }, now0);
+  }
+  E.applyAction(st, A, { type: 'sit', seat: 0 }, now0);
+  E.applyAction(st, A, { type: 'settings', settings: { mode: 'tournament' } }, now0);
+  E.applyAction(st, B, { type: 'sit', seat: 4 }, now0);
+  E.applyAction(st, A, { type: 'ready', value: true }, now0);
+  E.applyAction(st, B, { type: 'ready', value: true }, now0);
+  assert.strictEqual(st.phase, 'lobby'); // only two seated
+  E.applyAction(st, A, { type: 'settings', settings: { mode: 'duel' } }, now0);
+  assert.deepStrictEqual([st.seats[0].name, st.seats[1].name], ['Alice', 'Bob']); // compacted
+  assert.throws(() => E.applyAction(st, C, { type: 'join' }, now0) || E.applyAction(st, C, { type: 'sit', seat: 2 }, now0), /No such seat/);
+  E.applyAction(st, A, { type: 'settings', settings: { mode: 'classic' } }, now0);
+  for (const [i, u] of [C, D].entries()) {
+    E.applyAction(st, u, { type: 'join' }, now0);
+    E.applyAction(st, u, { type: 'sit', seat: 2 + i }, now0);
+  }
+  assert.throws(() => E.applyAction(st, A, { type: 'settings', settings: { mode: 'duel' } }, now0), /allows 2/);
+});
+
+test('leaving a live classic match refunds the round and the rest play on', () => {
+  const st = tableN([A, B, C], { mode: 'classic' });
+  bet(st, A, 100);
+  bet(st, B, 50);
+  E.applyAction(st, C, { type: 'forfeit' }, now0);
+  assert.strictEqual(st.seats[2], null);
+  assert.strictEqual(st.phase, 'betting');
+  assert.strictEqual(st.round, 1); // same round replayed
+  assert.deepStrictEqual(st.balances.slice(0, 2), [1000, 1000]); // bets refunded
+  assert.strictEqual(st.bets[0], null);
+  E.applyAction(st, B, { type: 'forfeit' }, now0);
+  assert.strictEqual(st.phase, 'over');
+  assert.strictEqual(st.over.winner, 0);
+  assert.strictEqual(st.over.reason, 'forfeit');
+});
+
+test('classic: players who go broke sit out while others continue; ranking at the end', () => {
+  const st = tableN([A, B, C], { mode: 'classic', startingBalance: 100, minBet: 50, maxBet: 100 });
+  rig(st, ['10S', '10H', '10D', '7H', '9S', '9H', '6C', '10D']); // A19 B19 C16, dealer 17
+  for (const u of [A, B, C]) bet(st, u, 100);
+  for (const u of [A, B, C]) stand(st, u);
+  E.tick(st, st.timerAt);
+  assert.strictEqual(st.alive[2], false); // C lost everything
+  assert.strictEqual(st.balances[0], 200);
+  E.tick(st, st.timerAt);
+  assert.strictEqual(st.round, 2); // A and B continue
+  assert.strictEqual(st.phase, 'betting');
+  assert.strictEqual(st.first, 1); // B acts first now
+  rig(st, ['10S', '10H', '9S', '9H', '8C', '8D']); // B 19, A 18, dealer 17
+  bet(st, A, 100);
+  bet(st, B, 100);
+  for (const u of [B, A]) stand(st, u);
+  E.tick(st, st.timerAt);
+  assert.deepStrictEqual(st.balances.slice(0, 3), [300, 300, 0]);
+  E.tick(st, st.timerAt);
+  assert.strictEqual(st.round, 3);
+  E.applyAction(st, B, { type: 'forfeit' }, now0);
+  assert.strictEqual(st.phase, 'over');
+  assert.strictEqual(st.over.winner, 0);
+  const rk = st.over.ranking;
+  assert.deepStrictEqual(rk.map((r) => [r.seat, r.place]), [[0, 1], [2, 2]]);
+});
+
+test('blitz mode shortens the timers and the intermission', () => {
+  const st = tableN([A, B], { blitz: true, betTime: 60, actionTime: 60 });
+  assert.strictEqual(st.timerDur, 8000);
+  rig(st, ['10S', '9S', '8S', '7S', '2H', '3H']);
+  bet(st, A, 10);
+  bet(st, B, 10);
+  if (st.phase === 'playing') assert.strictEqual(st.timerDur, 8000);
+  for (let g = 0; g < 10 && st.phase !== 'settled'; g++) E.tick(st, st.timerAt || now0);
+  assert.strictEqual(st.timerDur, 2500);
+});
+
+test('random play across all modes keeps balances sane and showdown zero-sum', () => {
+  const people = [A, B, C, D, { id: 'e1', name: 'Eve' }, { id: 'f1', name: 'Fay' }];
+  const setups = [['duel', 2], ['classic', 4], ['classic', 6], ['showdown', 3], ['showdown', 6], ['tournament', 3], ['tournament', 5]];
+  for (const [mode, n] of setups) {
+    for (const blitz of [false, true]) {
+      const users = people.slice(0, n);
+      const st = tableN(users, { mode, blitz, startingBalance: 200, minBet: 10, maxBet: 100, blindEvery: 3 });
+      assert.strictEqual(st.phase, 'betting', `${mode}/${n} should start`);
+      let t = now0;
+      let guard = 0;
+      while (st.phase !== 'over' && guard++ < 2500) {
+        for (const u of users) E.applyAction(st, u, { type: 'ping' }, t);
+        const seat = st.turn ? st.turn.seat : -1;
+        if (st.phase === 'betting') {
+          for (let s = 0; s < 6; s++) if (st.seats[s] && st.alive[s] && st.bets[s] == null && Math.random() < 0.7) {
+            const b = E.limits(st);
+            E.applyAction(st, users.find((u) => u.id === st.seats[s].id), { type: 'bet', amount: Math.min(st.balances[s], b.min + Math.floor(Math.random() * (b.max - b.min))) }, t);
+          }
+        } else if (st.phase === 'playing' && seat >= 0) {
+          const u = users.find((x) => x.id === st.seats[seat].id);
+          const lg = E.legal(st, seat);
+          const r = Math.random();
+          const type = r < 0.3 && lg.double ? 'double' : r < 0.4 && lg.split ? 'split' : r < 0.7 ? 'hit' : 'stand_hand';
+          E.applyAction(st, u, { type, seq: st.seq }, t);
+        }
+        if (st.timerAt) t = Math.max(t, st.timerAt - (Math.random() < 0.5 ? 0 : 1));
+        t += 50;
+        E.tick(st, t);
+        for (const b of st.balances) assert.ok(b >= 0, `${mode} negative balance`);
+        if (mode === 'showdown' && st.phase === 'settled') {
+          const total = st.balances.reduce((a, b) => a + b, 0);
+          assert.strictEqual(total, 200 * n, 'showdown must be zero-sum');
+        }
+      }
+      assert.strictEqual(st.phase, 'over', `${mode}/${n}${blitz ? ' blitz' : ''} should finish (rounds=${st.round})`);
+      assert.ok(st.over.ranking.length >= 1 && st.over.ranking[0].place === 1);
+    }
+  }
+});

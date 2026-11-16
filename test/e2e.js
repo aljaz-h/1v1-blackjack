@@ -85,6 +85,41 @@ class Client {
   assert.deepStrictEqual(s.view.over, a.view.over);
   assert.ok(a.view.round <= 5 && s.view.history.length === a.view.round);
   assert.ok(s.view.chat.some((m) => m.x === 'let it ride <script>'));
-  console.log(`e2e ok: ${a.view.round} rounds in ${((Date.now() - t0) / 1000).toFixed(1)}s, winner seat ${a.view.over.winner}, balances`, a.view.seats.map((x) => x.balance));
+  console.log(`e2e ok: ${a.view.round} rounds in ${((Date.now() - t0) / 1000).toFixed(1)}s, winner seat ${a.view.over.winner}, balances`, a.view.seats.filter(Boolean).map((x) => x.balance));
+
+  /* ---- second match: three bots in a Blitz tournament, same room ---- */
+  a.onview = b.onview = null;
+  await a.act('lobby');
+  const c = new Client('Cara'); await c.login();
+  assert.strictEqual((await c.act('sit', { seat: 2 })).status, 400, 'duel has no third seat');
+  const sr = await a.act('settings', { settings: { mode: 'tournament', blitz: true, startingBalance: 300, minBet: 20, maxBet: 100, maxRounds: 5, blindEvery: 3 } });
+  assert.strictEqual(sr.status, 200, JSON.stringify(sr));
+  assert.strictEqual((await c.act('sit', { seat: 2 })).status, 200);
+  await sleep(400);
+  assert.strictEqual(s.view.settings.blitz, true);
+  for (const x of [a, b, c]) await x.act('ready', { value: true });
+  await sleep(300);
+  assert.strictEqual(a.view.phase, 'betting', 'tournament started');
+  assert.strictEqual(a.view.timerDur, 8000, 'blitz timers');
+  const bots = [a, b, c];
+  const driveN = (x) => async () => {
+    const v = x.view; const me = v.you.seat; const mine = v.seats[me];
+    if (!mine || !mine.alive) return;
+    if (v.phase === 'betting' && mine.bet == null) x.act('bet', { amount: Math.max(v.limits.min, Math.min(v.limits.max, mine.balance, 50)) });
+    else if (v.phase === 'playing' && v.turn?.seat === me) {
+      const h = v.hands[me][v.turn.hand]; const tot = h.cards.reduce((q, y) => q + (/^[AKQJ1]/.test(y) ? 10 : parseInt(y)), 0);
+      x.act(tot < 15 && v.legal ? 'hit' : 'stand_hand');
+    } else if (v.phase === 'settled') x.act('next');
+  };
+  bots.forEach((x) => (x.onview = driveN(x)));
+  const t1 = Date.now();
+  while (a.view.phase !== 'over' && Date.now() - t1 < 90000) await sleep(100);
+  assert.strictEqual(a.view.phase, 'over', 'tournament finished');
+  await sleep(200);
+  const rk = a.view.over.ranking;
+  assert.strictEqual(rk.length, 3);
+  assert.strictEqual(rk[0].place, 1);
+  assert.deepStrictEqual(s.view.over, a.view.over);
+  console.log(`e2e tournament ok: ${a.view.round} rounds in ${((Date.now() - t1) / 1000).toFixed(1)}s, ranking`, rk.map((r) => `${r.place}.${r.name}:${r.balance}`).join(' '));
   srv.kill(); fake && fake.close(); process.exit(0);
 })().catch((e) => { console.error('E2E FAIL', e); srv.kill(); fake && fake.close(); process.exit(1); });

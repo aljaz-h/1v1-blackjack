@@ -16,6 +16,19 @@ Live chat, animated cards and chips, synthesized sounds, hotkeys, mobile friendl
 Hotkeys: `H` hit · `S` stand · `D` double · `P` split · `Enter` place bet / next round · `/` chat.
 Cards are shuffled with `crypto.randomInt`; the dealer's hole card never leaves the server until it's revealed.
 
+## Game modes
+
+Pick a mode in the lobby once seated (any seated player can change it; changing a setting un-readies everyone).
+
+| Mode | Players | Rules |
+|---|---|---|
+| Duel | 2 | Classic 1v1 against the dealer, richest stack wins |
+| Classic | 2–6 | Everyone plays the dealer, ranking by final stack |
+| Showdown | 2–6 | No dealer: best hand takes the pot. Natural blackjack beats 21, ties split, busts lose. Poker-style side pots, nobody loses more than their stake, zero-sum |
+| Tournament | 3–6 | Classic vs the dealer with bet limits ×1.5 every N rounds (blinds). Bust out when you can't cover the minimum bet; last one standing wins |
+
+**Blitz** is a toggle that works with every mode: 8s to bet, 8s to act, short intermissions.
+
 ## Run locally
 
 ```bash
