@@ -8,6 +8,6 @@
   "scripts": {
     "start": "node server/main.js",
     "dev": "node --watch server/main.js",
-    "test": "node --test test/engine.test.js test/store.test.js && node test/e2e.js && E2E_REDIS=1 node test/e2e.js"
+    "test": "node --test test/engine.test.js test/poker.test.js test/store.test.js && node test/e2e.js && E2E_REDIS=1 node test/e2e.js"
   }
 }

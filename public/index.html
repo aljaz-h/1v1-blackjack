@@ -69,8 +69,10 @@
     </section>
     <section class="hotkeys">
       <h3><span data-ic="keyboard"></span>Hotkeys</h3>
-      <div><kbd>H</kbd> hit <kbd>S</kbd> stand <kbd>D</kbd> double <kbd>P</kbd> split</div>
-      <div><kbd>Enter</kbd> place bet / next round <kbd>/</kbd> chat</div>
+      <div data-g="bj"><kbd>H</kbd> hit <kbd>S</kbd> stand <kbd>D</kbd> double <kbd>P</kbd> split</div>
+      <div data-g="bj"><kbd>Enter</kbd> place bet / next round <kbd>/</kbd> chat</div>
+      <div data-g="pk"><kbd>F</kbd> fold <kbd>C</kbd> check / call <kbd>R</kbd> raise</div>
+      <div data-g="pk"><kbd>Enter</kbd> next hand <kbd>/</kbd> chat</div>
     </section>
   </aside>
 
@@ -85,7 +87,7 @@
         <div class="chiprack" aria-hidden="true"><i class="cs" style="--c:#64748b;--n:6"></i><i class="cs" style="--c:#ef4444;--n:7"></i><i class="cs" style="--c:#3b82f6;--n:5"></i><i class="cs" style="--c:#16a34a;--n:7"></i><i class="cs" style="--c:#f97316;--n:6"></i><i class="cs" style="--c:#18181b;--n:7"></i><i class="cs" style="--c:#9333ea;--n:5"></i><i class="cs" style="--c:#db2777;--n:6"></i><i class="cs" style="--c:#ca8a04;--n:7"></i></div>
         <div class="shoe" id="shoe"><div class="shoe-box"><i class="sb-card"></i><i class="sb-card sb2"></i></div><span id="shoeCount"></span></div>
         <div class="dealer-zone">
-          <div class="dealer-label"><span>DEALER</span><span class="total" id="dealerTotal"></span></div>
+          <div class="dealer-label"><span id="dealerLbl">DEALER</span><span class="total" id="dealerTotal"></span></div>
           <div class="cards" id="dealerCards"></div>
         </div>
         <div class="felt-text"><div id="ftPay">BLACKJACK PAYS 3 TO 2</div><div id="ftRule">DEALER STANDS ON ALL 17s</div></div>
@@ -99,20 +101,23 @@
             <div class="lobby-seats arc" id="lobbySeats"></div>
             <div class="lobby-mine hidden" id="lobbyMine"></div>
             <div class="settings" id="settings" data-mode="duel">
-              <div class="field wide"><label>Game mode</label><div class="modes" id="modeSel"></div><div class="mode-desc" id="modeDesc"></div></div>
+              <div class="field wide"><label>Game</label><div class="modes games" id="gameSel"><button type="button" data-game="blackjack"><span data-ic="spade"></span><span>Degen 21</span><small>Blackjack</small></button><button type="button" data-game="poker"><span data-ic="dices"></span><span>Degen Poker</span><small>Texas Hold'em</small></button></div></div>
+              <div class="field wide" data-g="bj"><label>Game mode</label><div class="modes" id="modeSel"></div><div class="mode-desc" id="modeDesc"></div></div>
               <div class="field wide"><label class="switch"><input type="checkbox" id="sBlitz"><span class="sw-track"></span><span class="sw-txt"><b>Blitz</b><small>8s to bet and act, fast rounds. Works with every mode.</small></span></label></div>
               <div class="field wide"><label>Starting balance</label>
                 <div class="inline"><input id="sBalance" type="number" min="50" step="50"><div class="presets" id="balPresets"><button type="button" data-v="500">500</button><button type="button" data-v="1000">1K</button><button type="button" data-v="5000">5K</button><button type="button" data-v="10000">10K</button><button type="button" data-v="100000">100K</button></div></div></div>
-              <div class="field"><label>Min bet</label><input id="sMin" type="number" min="1"></div>
-              <div class="field"><label>Max bet</label>
+              <div class="field" data-g="bj"><label>Min bet</label><input id="sMin" type="number" min="1"></div>
+              <div class="field" data-g="bj"><label>Max bet</label>
                 <div class="seg" id="maxSeg" role="group" aria-label="Max bet mode"><button type="button" data-m="auto" title="Half of the starting balance">Auto</button><button type="button" data-m="manual" title="Type your own limit">Custom</button><button type="button" data-m="unlimited" title="No table limit, bet anything up to your stack"><span data-ic="infinity"></span></button></div>
                 <input id="sMax" type="number" min="1"><div class="maxnote hidden" id="maxNote">No limit, your stack is the cap.</div></div>
-              <div class="field"><label>Decks</label><select id="sDecks"><option>1</option><option>2</option><option>4</option><option>6</option><option>8</option></select></div>
-              <div class="field" data-f="house"><label>Blackjack pays</label><select id="sPayout"><option value="1.5">3 : 2</option><option value="1.2">6 : 5</option><option value="1">1 : 1</option></select></div>
-              <div class="field" data-f="house"><label>Dealer soft 17</label><select id="sH17"><option value="0">Stands</option><option value="1">Hits</option></select></div>
-              <div class="field"><label>Rounds</label><select id="sRounds"><option value="0">Until broke</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></div>
-              <div class="field" data-f="blind"><label>Blinds up every</label><select id="sBlind"><option value="3">3 rounds</option><option value="5">5 rounds</option><option value="10">10 rounds</option></select></div>
-              <div class="field"><label>Bet timer</label><select id="sBetTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
+              <div class="field" data-g="bj"><label>Decks</label><select id="sDecks"><option>1</option><option>2</option><option>4</option><option>6</option><option>8</option></select></div>
+              <div class="field" data-g="bj" data-f="house"><label>Blackjack pays</label><select id="sPayout"><option value="1.5">3 : 2</option><option value="1.2">6 : 5</option><option value="1">1 : 1</option></select></div>
+              <div class="field" data-g="bj" data-f="house"><label>Dealer soft 17</label><select id="sH17"><option value="0">Stands</option><option value="1">Hits</option></select></div>
+              <div class="field"><label id="lblRounds">Rounds</label><select id="sRounds"><option value="0">Until broke</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></div>
+              <div class="field" data-g="bj" data-f="blind"><label>Bet limits up every</label><select id="sBlind"><option value="3">3 rounds</option><option value="5">5 rounds</option><option value="10">10 rounds</option></select></div>
+              <div class="field" data-g="pk"><label>Small blind</label><div class="inline"><input id="sSb" type="number" min="1" step="1"></div></div>
+              <div class="field" data-g="pk"><label>Blinds up every</label><select id="sLevel"><option value="0">Never</option><option value="5">5 hands</option><option value="10">10 hands</option><option value="20">20 hands</option></select></div>
+              <div class="field" data-g="bj"><label>Bet timer</label><select id="sBetTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
               <div class="field"><label>Action timer</label><select id="sActTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
             </div>
             <div class="open-row hidden" id="openRow"><button class="btn primary big" id="openBtn" type="button"></button></div>
@@ -144,6 +149,15 @@
           <button class="btn act dbl" id="aDouble"><span data-ic="chevrons-up"></span>Double <kbd>D</kbd></button>
           <button class="btn act split" id="aSplit"><span data-ic="split"></span>Split <kbd>P</kbd></button>
         </div>
+        <div class="dock-sec" id="dockPoker">
+          <button class="btn act pk-fold" id="pkFold"><span data-ic="x"></span>Fold <kbd>F</kbd></button>
+          <button class="btn act pk-call" id="pkCall"></button>
+          <div class="pk-raise" id="pkRaise">
+            <div class="pk-presets" id="pkPresets"><button type="button" data-p="min">Min</button><button type="button" data-p="0.5">½ pot</button><button type="button" data-p="0.75">¾ pot</button><button type="button" data-p="1">Pot</button><button type="button" data-p="max" class="allin">All in</button></div>
+            <div class="pk-row"><input type="range" id="pkRange" min="0" max="100" step="1" aria-label="Raise amount"><input type="number" id="pkAmt" min="0" step="1" aria-label="Raise to"><button class="btn act pk-go" id="pkGo"></button></div>
+          </div>
+          <div class="timer-big"><i id="pkBar"></i></div>
+        </div>
         <div class="dock-sec" id="dockIns">
           <div class="ins-txt"><b id="insTitle">Insurance?</b><small id="insSub"></small></div>
           <button class="btn act ins-yes" id="insYes"></button>
@@ -163,7 +177,7 @@
     <section class="rounds panel" data-tabpanel="rounds">
       <div class="panel-h"><h3><span data-ic="history"></span>Recent rounds</h3></div>
       <div class="rtable">
-        <div class="rrow rhead"><span>Rnd</span><span>Player</span><span>Hand</span><span>Dealer</span><span>Bet</span><span>Net</span></div>
+        <div class="rrow rhead"><span>Rnd</span><span>Player</span><span>Hand</span><span id="rhDealer">Dealer</span><span id="rhBet">Bet</span><span>Net</span></div>
         <div id="rbody"></div>
         <div class="empty" id="rempty">No rounds yet. Place a bet.</div>
       </div>

@@ -127,6 +127,37 @@ class Client {
   assert.strictEqual(rk[0].place, 1);
   assert.deepStrictEqual(s.view.over, a.view.over);
   console.log(`e2e tournament ok: ${a.view.round} rounds in ${((Date.now() - t1) / 1000).toFixed(1)}s, ranking`, rk.map((r) => `${r.place}.${r.name}:${r.balance}`).join(' '));
+  /* ---- same room, now a Texas Hold'em match ---- */
+  for (const x of bots) await x.act('lobby');
+  await sleep(200);
+  assert.strictEqual(a.view.phase, 'lobby');
+  const pr = await a.act('settings', { settings: { game: 'poker', blitz: true, startingBalance: 400, sb: 10, maxRounds: 8 } });
+  assert.strictEqual(pr.status, 200, JSON.stringify(pr));
+  assert.strictEqual(a.view.settings.mode, 'holdem');
+  for (const x of bots) await x.act('ready', { value: true });
+  await sleep(300);
+  assert.strictEqual(a.view.phase, 'poker', 'poker started');
+  const pkBot = (x) => () => {
+    const v = x.view, me = v.you.seat;
+    if (!v.poker) return;
+    // nobody may ever see another player's hole cards before showdown
+    if (v.phase === 'poker') for (let i = 0; i < 6; i++) if (i !== me && v.poker.hole[i] && v.poker.hole[i].some(Boolean)) throw new Error('hole card leak');
+    if (v.phase === 'poker' && v.poker.legal && v.poker.to === me) {
+      const lg = v.poker.legal, r = Math.random();
+      if (lg.raise && r < 0.25) x.act('raise', { to: lg.raise.min });
+      else if (!lg.check && r > 0.9) x.act('fold');
+      else x.act(lg.check ? 'check' : 'call');
+    } else if (v.phase === 'settled') x.act('next');
+  };
+  bots.forEach((x) => (x.onview = pkBot(x)));
+  const t2 = Date.now();
+  while (a.view.phase !== 'over' && Date.now() - t2 < 90000) await sleep(100);
+  assert.strictEqual(a.view.phase, 'over', 'poker match finished');
+  await sleep(200);
+  const total = a.view.over.ranking.reduce((q, r) => q + r.balance, 0);
+  assert.strictEqual(total, 1200, 'chips conserved');
+  console.log(`e2e poker ok: ${a.view.round} hands in ${((Date.now() - t2) / 1000).toFixed(1)}s`, a.view.over.ranking.map((r) => `${r.place}.${r.name}:${r.balance}`).join(' '));
+  bots.forEach((x) => (x.onview = null));
   /* ---- room cap: 'e2e' already exists, so 9 more fit and the 10th new one is refused ---- */
   const cap = [];
   for (let i = 0; i < 10; i++) cap.push((await post('/api/act', { room: 'cap' + i, type: 'join' }, a.token)).status);

@@ -26,7 +26,10 @@ const MODES = {
   classic: { label: 'Classic', icon: 'users', desc: '2–6 players, each against the dealer. Play on until one stack is left or the round limit hits.' },
   showdown: { label: 'Showdown', icon: 'dices', desc: '2–6 players, no dealer. Best hand takes the pot (side pots for unequal bets). A natural blackjack beats 21.' },
   tournament: { label: 'Tournament', icon: 'trophy', desc: '3–6 players vs the dealer. Bet limits rise as rounds pass; run out of chips and you are eliminated.' },
+  holdem: { label: "Texas Hold'em", icon: 'spade', desc: "2–6 players. Two hole cards each, five on the board, best five-card hand wins. Fold, call or raise; run out of chips and you are out." },
 };
+const STREET = { preflop: 'Pre-flop', flop: 'Flop', turn: 'Turn', river: 'River' };
+const isPk = (v) => !!(v && v.game === 'poker' && v.poker);
 const modeOf = (v) => (v && v.mode && v.mode.id) || 'duel';
 const place = (n) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : n + 'th');
 /* Player profiles (custom color + icon), keyed by name; rebuilt from every view. */
@@ -540,7 +543,7 @@ const seatNodes = Array.from({ length: NSEATS }, (_, i) => {
   const d = document.createElement('div');
   d.className = 'seat'; d.dataset.seat = i;
   d.innerHTML = `<div class="emptytxt"></div>
-    <div class="seat-head"><span class="avawrap"><span class="avatar"></span></span><div class="who"><div class="name"></div><div class="bal"><i class="coin"></i><b>0</b></div></div><div class="badges"></div></div>
+    <div class="seat-head"><span class="avawrap"><span class="avatar"></span><span class="pos"></span></span><div class="who"><div class="name"></div><div class="bal"><i class="coin"></i><b>0</b></div></div><div class="badges"></div></div>
     <div class="timer"><i></i></div><div class="hands"></div><div class="betrow"></div><div class="float"></div>`;
   seatsEl.appendChild(d);
   return d;
@@ -560,7 +563,16 @@ function dealerVisible(v) {
   for (let k = 2; k < cards.length; k++) { if (el >= 500 + 800 * (k - 1)) out.push(cards[k]); else break; }
   return out;
 }
+function renderBoard(v) {
+  const pk = v.poker, box = $('#dealerCards');
+  if (box._round !== v.round) { box.innerHTML = ''; box._round = v.round; }
+  syncCards(box, pk.board, (i) => (i < 3 ? i * 240 : 0) + 120);
+  $('#dealerLbl').textContent = 'POT';
+  const t = $('#dealerTotal'); t.className = 'total pot'; t.textContent = pk.pot > 0 ? fmt(pk.pot) : '';
+}
 function renderDealer(v) {
+  if (isPk(v)) return renderBoard(v);
+  $('#dealerLbl').textContent = 'DEALER';
   const vis = dealerVisible(v);
   const np = dealOrder(v).length;
   syncCards($('#dealerCards'), vis, (i) => (i < 2 ? (i * (np + 1) + np) * DEAL_GAP : 0));
@@ -578,7 +590,7 @@ function renderSeat(i, v, prev) {
   if (!s) {
     node.querySelector('.emptytxt').textContent = `Seat ${i + 1} is open`;
     node.style.removeProperty('--c');
-    node.classList.remove('active', 'multi', 'out');
+    node.classList.remove('active', 'multi', 'out', 'fold', 'allin');
     node.querySelector('.hands').innerHTML = '';
     return;
   }
@@ -587,11 +599,16 @@ function renderSeat(i, v, prev) {
   setAvatar(node.querySelector('.avatar'), s.name, i);
   node.querySelector('.name').textContent = s.name;
   countTo(node.querySelector('.bal b'), s.balance);
+  const pkm = isPk(v);
   node.querySelector('.badges').innerHTML =
-    (v.first === i && s.alive && ['betting', 'playing', 'dealer', 'settled'].includes(v.phase) ? '<span class="badge first" title="Acts first this round">1ST</span>' : '') +
+    (!pkm && v.first === i && s.alive && ['betting', 'playing', 'dealer', 'settled'].includes(v.phase) ? '<span class="badge first" title="Acts first this round">1ST</span>' : '') +
     (!s.online ? '<span class="badge off">OFFLINE</span>' : '');
-  const active = v.phase === 'playing' && v.turn && v.turn.seat === i;
+  const active = pkm ? v.phase === 'poker' && v.poker.to === i : v.phase === 'playing' && v.turn && v.turn.seat === i;
   node.classList.toggle('active', !!active);
+  node.classList.toggle('offline', !s.online);
+  if (pkm) return renderSeatPoker(i, v, prev, node, s);
+  node.classList.remove('fold', 'allin');
+  node.querySelector('.pos').textContent = '';
 
   // hands
   const hands = v.hands[i] || [];
@@ -657,7 +674,63 @@ function renderSeat(i, v, prev) {
   }
 }
 
+function renderSeatPoker(i, v, prev, node, s) {
+  const pk = v.poker, inHand = !!pk.inHand[i], folded = !!pk.folded[i];
+  node.classList.remove('multi');
+  node.classList.toggle('fold', inHand && folded);
+  node.classList.toggle('allin', inHand && !folded && !!pk.allin[i]);
+  const tags = [];
+  if (inHand) { if (pk.button === i) tags.push('D'); if (pk.sbSeat === i) tags.push('SB'); else if (pk.bbSeat === i) tags.push('BB'); }
+  const pos = node.querySelector('.pos');
+  pos.textContent = tags.join('·'); pos.dataset.k = tags[0] || '';
+
+  // hole cards
+  const box = node.querySelector('.hands');
+  while (box.children.length > 1) box.lastChild.remove();
+  let hn = box.children[0];
+  if (!hn) {
+    hn = document.createElement('div'); hn.className = 'hand';
+    hn.innerHTML = '<div class="cards"></div><div class="hmeta"><span class="total"></span><span class="hbet"><i class="coin"></i><b></b></span><span class="insb"></span><span class="res"></span></div>';
+    box.appendChild(hn);
+  }
+  const cards = hn.querySelector('.cards');
+  if (node._round !== v.round) { cards.innerHTML = ''; node._round = v.round; }
+  const ord = []; for (let k = 1; k <= NSEATS; k++) { const x = (pk.button + k) % NSEATS; if (pk.inHand[x]) ord.push(x); }
+  const np = Math.max(1, ord.length), posIdx = Math.max(0, ord.indexOf(i));
+  syncCards(cards, inHand ? pk.hole[i] || [] : [], (ci) => (ci * np + posIdx) * DEAL_GAP * 0.7);
+  const r = v.phase === 'settled' && pk.res ? pk.res[i] : null;
+  const rs = hn.querySelector('.res');
+  const cls = r ? (r.folded ? 'lose' : r.net > 0 ? 'win' : r.net < 0 ? 'lose' : 'push') : '';
+  rs.className = 'res' + (cls ? ' ' + cls : '');
+  rs.textContent = r && inHand ? ((r.hand ? r.hand.toUpperCase() : r.folded ? 'FOLDED' : '') + (r.net ? ` ${r.net > 0 ? '+' : '−'}${fmt(Math.abs(r.net))}` : '')).trim() : '';
+  hn.className = 'hand' + (cls ? ' ' + cls : '');
+
+  // street bet + last action
+  const br = node.querySelector('.betrow');
+  const b = inHand && v.phase === 'poker' ? pk.bet[i] : 0;
+  const last = inHand && v.phase === 'poker' ? pk.last[i] || '' : '';
+  const sig = `p|${v.round}|${b}|${last}`;
+  if (br._sig !== sig) {
+    const had = br._pb || 0;
+    if (!S.instant && had > 0 && b === 0 && prev && prev.round === v.round && v.phase === 'poker' && !folded) flyCoins(br, $('#dealerCards'), 3);
+    br._sig = sig; br._pb = b;
+    br.innerHTML = (b > 0 ? `<span class="pkbet"><i class="coin"></i>${fmt(b)}</span>` : '') + (last ? `<span class="pklast ${last.toLowerCase().replace(/[^a-z]/g, '')}">${last.toUpperCase()}</span>` : '');
+    if (!S.instant && b > had) { sfx.chip(); flyCoins(node.querySelector('.bal .coin'), br, 2); }
+  }
+
+  // floating net + coins to the winner
+  if (v.phase === 'settled' && r && inHand && (!prev || prev.phase !== 'settled')) {
+    const net = r.net, f = node.querySelector('.float');
+    f.className = 'float'; void f.offsetWidth;
+    f.textContent = net === 0 ? 'SPLIT' : (net > 0 ? '+' : '−') + fmt(Math.abs(net));
+    f.classList.add(net < 0 ? 'down' : 'up', 'go');
+    const coin = node.querySelector('.bal .coin'), potEl = $('#dealerCards');
+    if (net > 0) flyCoins(potEl, coin, 6); else if (net < 0) flyCoins(coin, potEl, 3);
+  }
+}
+
 function renderBanner(v) {
+  if (isPk(v)) return renderBannerPoker(v);
   const showdown = modeOf(v) === 'showdown';
   const nameOf = (i) => (v.seats[i] ? v.seats[i].name : '—');
   const me = v.you.seat >= 0 ? v.seats[v.you.seat] : null;
@@ -690,11 +763,36 @@ function renderBanner(v) {
   }
 }
 
+function renderBannerPoker(v) {
+  const pk = v.poker, nameOf = (i) => (v.seats[i] ? v.seats[i].name : '—');
+  const me = v.you.seat, f = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  let t = '', sub = '', cls = '', icon = '';
+  if (v.phase === 'poker') {
+    if (pk.to >= 0) { t = pk.to === me ? 'YOUR MOVE' : `${nameOf(pk.to).toUpperCase()}'S MOVE`; sub = STREET[pk.street] || ''; }
+    else { t = 'ALL IN'; icon = 'sp-bars-scale-middle'; sub = 'Running it out'; }
+  } else if (v.phase === 'settled' && pk.res) {
+    const ids = [...Array(NSEATS).keys()].filter((i) => pk.res[i]);
+    const winners = ids.filter((i) => pk.res[i].net > 0).sort((a, b) => pk.res[b].net - pk.res[a].net);
+    const mine = me >= 0 && pk.res[me] ? pk.res[me] : null;
+    if (mine && mine.net > 0) { t = `YOU WIN ${f(mine.net)}`; cls = 'pos'; icon = 'trophy'; sub = mine.hand || 'Everyone folded'; }
+    else if (winners.length) { const w = winners[0]; t = `${nameOf(w).toUpperCase()} WINS ${fmt(pk.res[w].net)}`; sub = pk.res[w].hand || 'Everyone folded'; if (mine && mine.net < 0) cls = 'neg'; }
+    else t = `HAND ${v.round} COMPLETE`;
+    if (v.over) sub += (sub ? ' · ' : '') + 'Final hand';
+  }
+  const b = $('#banner'), key = t + '|' + sub + '|' + icon;
+  if (b._k !== key) {
+    b._k = key; b.className = 'banner ' + cls; b.textContent = t;
+    if (icon) b.insertAdjacentHTML('afterbegin', ic(icon, 'bn-ic'));
+    if (sub) { const s2 = document.createElement('small'); s2.textContent = sub; b.appendChild(s2); }
+    void b.offsetWidth; b.classList.add('pop');
+  }
+}
+
 /* =====================================================================
    dock (bets / actions)
    ===================================================================== */
 const dock = {
-  bet: $('#dockBet'), play: $('#dockPlay'), ins: $('#dockIns'), wait: $('#dockWait'), next: $('#dockNext'), spec: $('#dockSpec'),
+  bet: $('#dockBet'), play: $('#dockPlay'), poker: $('#dockPoker'), ins: $('#dockIns'), wait: $('#dockWait'), next: $('#dockNext'), spec: $('#dockSpec'),
 };
 const fmtMax = (n) => (n >= 1e9 ? '∞' : fmt(n));
 const betCap = (v) => { const me = v.seats[v.you.seat]; return me && me.alive ? Math.min(v.limits.max, me.balance) : 0; };
@@ -757,6 +855,57 @@ playBtn.double.addEventListener('click', () => doAction('double'));
 playBtn.split.addEventListener('click', () => doAction('split'));
 $('#nextBtn').addEventListener('click', () => act('next'));
 
+/* poker controls */
+const pkEl = { fold: $('#pkFold'), call: $('#pkCall'), go: $('#pkGo'), range: $('#pkRange'), amt: $('#pkAmt'), raise: $('#pkRaise'), presets: $('#pkPresets') };
+const pkState = { key: '', to: 0 };
+const pkClamp = (lg, n) => (lg.raise ? Math.max(lg.raise.min, Math.min(lg.raise.max, Math.round(n) || 0)) : 0);
+function pkSetTo(v, n) {
+  const lg = v.poker.legal; if (!lg || !lg.raise) return;
+  pkState.to = pkClamp(lg, n);
+  pkEl.amt.value = pkState.to; pkEl.range.value = pkState.to;
+  const all = pkState.to >= lg.raise.max;
+  pkEl.go.innerHTML = all ? `${ic('chevrons-up')}All in <b>${fmt(pkState.to)}</b>` : `${ic('chevrons-up')}${v.poker.cur > 0 ? 'Raise to' : 'Bet'} <b>${fmt(pkState.to)}</b><kbd>R</kbd>`;
+  pkEl.go.classList.toggle('allin', all);
+}
+function renderPokerDock(v) {
+  const pk = v.poker, lg = pk.legal, me = v.you.seat;
+  const cd = v.seats[me];
+  pkEl.fold.disabled = pkEl.call.disabled = pkEl.go.disabled = acting;
+  pkEl.call.innerHTML = lg.check ? `${ic('check')}Check <kbd>C</kbd>` : lg.call >= cd.balance ? `${ic('check')}Call all-in <b>${fmt(lg.call)}</b><kbd>C</kbd>` : `${ic('check')}Call <b>${fmt(lg.call)}</b><kbd>C</kbd>`;
+  pkEl.raise.classList.toggle('hidden', !lg.raise);
+  if (!lg.raise) return;
+  const key = `${v.round}|${pk.street}|${pk.cur}|${pk.bet[me]}`;
+  pkEl.range.min = lg.raise.min; pkEl.range.max = lg.raise.max;
+  pkEl.range.disabled = pkEl.amt.disabled = lg.raise.min >= lg.raise.max;
+  pkEl.amt.min = lg.raise.min; pkEl.amt.max = lg.raise.max;
+  if (pkState.key !== key) { pkState.key = key; pkSetTo(v, lg.raise.min); } else pkSetTo(v, pkState.to);
+}
+pkEl.range.addEventListener('input', () => S.view && pkSetTo(S.view, +pkEl.range.value));
+pkEl.amt.addEventListener('change', () => S.view && pkSetTo(S.view, +pkEl.amt.value));
+pkEl.presets.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-p]'); const v = S.view;
+  if (!b || !v || !isPk(v) || !v.poker.legal || !v.poker.legal.raise) return;
+  const lg = v.poker.legal, me = v.you.seat, pk = v.poker, p = b.dataset.p;
+  if (p === 'min') return pkSetTo(v, lg.raise.min);
+  if (p === 'max') return pkSetTo(v, lg.raise.max);
+  const toCall = pk.cur - pk.bet[me];
+  pkSetTo(v, pk.cur + (pk.pot + toCall) * +p);
+});
+async function pkAct(type, extra) {
+  if (acting) return;
+  const v = S.view;
+  if (!v || !isPk(v) || !v.poker.legal) return;
+  const lg = v.poker.legal;
+  if (type === 'check' && !lg.check) type = 'call';
+  if (type === 'call' && lg.check) type = 'check';
+  if (type === 'raise' && !lg.raise) return;
+  acting = true; pkEl.fold.disabled = pkEl.call.disabled = pkEl.go.disabled = true;
+  try { await act(type, extra); } finally { acting = false; if (S.view) renderDock(S.view); }
+}
+pkEl.fold.addEventListener('click', () => pkAct('fold'));
+pkEl.call.addEventListener('click', () => pkAct('call'));
+pkEl.go.addEventListener('click', () => pkAct('raise', { to: pkState.to }));
+
 function setDock(which, text) {
   for (const k of Object.keys(dock)) dock[k].classList.toggle('on', k === which);
   if (which === 'wait') $('#waitTxt').textContent = text || '';
@@ -766,9 +915,9 @@ function setDock(which, text) {
 function renderDock(v) {
   const me = v.you.seat, seated = me >= 0, mine = seated ? v.seats[me] : null;
   const playing = !!(mine && mine.alive); // seated and still in the match
-  const live = ['betting', 'playing', 'dealer', 'settled'].includes(v.phase);
+  const live = ['betting', 'playing', 'dealer', 'poker', 'settled'].includes(v.phase);
   $('#dock').classList.toggle('hidden', v.phase === 'lobby' || v.phase === 'over');
-  $('#forfeitBtn').classList.toggle('hidden', !(playing && ['betting', 'playing', 'dealer'].includes(v.phase)));
+  $('#forfeitBtn').classList.toggle('hidden', !(playing && ['betting', 'playing', 'dealer', 'poker'].includes(v.phase)));
   $('#dock').classList.toggle('frozen', !!v.paused);
   $('#pauseBtn').classList.toggle('hidden', !(v.you.host && live && !v.over && !v.paused));
   $('#pauseOv').classList.toggle('hidden', !v.paused);
@@ -778,6 +927,16 @@ function renderDock(v) {
   }
   if (!live) return;
   const specTxt = seated ? 'You are out of chips. Spectating.' : 'You are spectating.';
+
+  if (v.phase === 'poker') {
+    const pk = v.poker, nm = (i) => (v.seats[i] ? v.seats[i].name : '…');
+    if (pk.legal && pk.to === me) { setDock('poker'); renderPokerDock(v); }
+    else if (playing && pk.folded[me]) setDock('wait', pk.to >= 0 ? `You folded. ${nm(pk.to)} is acting…` : 'You folded. Waiting for the hand to finish…');
+    else if (playing && pk.allin[me] && pk.to < 0) setDock('wait', 'You are all in. Running it out…');
+    else if (pk.to >= 0) setDock(playing ? 'wait' : 'spec', playing ? `${nm(pk.to)} is thinking…` : `${nm(pk.to)} is thinking. ${specTxt}`);
+    else setDock(playing ? 'wait' : 'spec', 'Running out the board…');
+    return;
+  }
 
   if (v.phase === 'betting') {
     if (playing && mine.bet == null) {
@@ -816,19 +975,20 @@ function renderDock(v) {
       setDock('next');
       const voted = mine.voted;
       $('#nextBtn').disabled = voted || !!v.over;
-      $('#nextBtn').innerHTML = voted ? ic('sp-3-dots-fade') + 'Waiting for others' : 'Next round' + ic('arrow-right') + '<kbd>↵</kbd>';
+      $('#nextBtn').innerHTML = voted ? ic('sp-3-dots-fade') + 'Waiting for others' : (isPk(v) ? 'Next hand' : 'Next round') + ic('arrow-right') + '<kbd>↵</kbd>';
       $('#nextBtn').classList.toggle('hidden', !!v.over);
-    } else setDock('spec', v.over ? 'Match is ending…' : 'Next round starting soon…');
+    } else setDock('spec', v.over ? 'Match is ending…' : isPk(v) ? 'Next hand starting soon…' : 'Next round starting soon…');
   }
 }
 
 /* =====================================================================
    lobby + settings + over
    ===================================================================== */
-const setIds = { startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', blindEvery: '#sBlind', betTime: '#sBetTime', actionTime: '#sActTime' };
+const setIds = { sb: '#sSb', levelEvery: '#sLevel', startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', blindEvery: '#sBlind', betTime: '#sBetTime', actionTime: '#sActTime' };
 function collectSettings(over = {}) {
   return {
-    mode: S.view ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
+    game: S.view ? S.view.settings.game || 'blackjack' : 'blackjack', sb: +$('#sSb').value, levelEvery: +$('#sLevel').value,
+    mode: S.view && S.view.settings.game !== 'poker' ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
     startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value, maxBetMode: (S.view && S.view.settings.maxBetMode) || 'auto',
     decks: +$('#sDecks').value, payout: +$('#sPayout').value, h17: $('#sH17').value === '1',
     maxRounds: +$('#sRounds').value, blindEvery: +$('#sBlind').value, betTime: +$('#sBetTime').value, actionTime: +$('#sActTime').value,
@@ -840,7 +1000,8 @@ $('#sMax').addEventListener('change', () => act('settings', { settings: collectS
 $('#maxSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b && !b.disabled && S.view && S.view.settings.maxBetMode !== b.dataset.m) act('settings', { settings: collectSettings({ maxBetMode: b.dataset.m }) }); });
 $$('#settings input:not(#sMax), #settings select').forEach((el) => el.addEventListener('change', () => act('settings', { settings: collectSettings() })));
 $$('#balPresets button').forEach((b) => b.addEventListener('click', () => { $('#sBalance').value = b.dataset.v; act('settings', { settings: collectSettings() }); }));
-$('#modeSel').innerHTML = Object.entries(MODES).map(([id, m]) => `<button type="button" data-mode="${id}">${ic(m.icon)}<span>${m.label}</span></button>`).join('');
+$('#gameSel').addEventListener('click', (e) => { const b = e.target.closest('[data-game]'); if (b && !b.disabled && S.view && (S.view.settings.game || 'blackjack') !== b.dataset.game) act('settings', { settings: collectSettings({ game: b.dataset.game }) }); });
+$('#modeSel').innerHTML = Object.entries(MODES).filter(([id]) => id !== 'holdem').map(([id, m]) => `<button type="button" data-mode="${id}">${ic(m.icon)}<span>${m.label}</span></button>`).join('');
 $('#modeSel').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b && !b.disabled && S.view && S.view.settings.mode !== b.dataset.mode) act('settings', { settings: collectSettings({ mode: b.dataset.mode }) }); });
 
 function renderLobby(v) {
@@ -870,20 +1031,22 @@ function renderLobby(v) {
     $$('#modeSel button').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.mode));
     $('#modeDesc').textContent = (MODES[st.mode] || MODES.duel).desc;
     $('#settings').dataset.mode = st.mode;
+    $$('#gameSel button').forEach((b) => b.classList.toggle('on', b.dataset.game === (st.game || 'blackjack')));
+    $('#lblRounds').textContent = st.game === 'poker' ? 'Hands' : 'Rounds';
     $('#sRounds').options[0].textContent = st.mode === 'duel' ? 'Until broke' : 'Until one left';
   }
-  $$('#settings input, #settings select, #balPresets button, #modeSel button').forEach((el) => (el.disabled = !isHost));
+  $$('#settings input, #settings select, #balPresets button, #modeSel button, #gameSel button').forEach((el) => (el.disabled = !isHost));
   $('#sMax').disabled = !isHost || st.maxBetMode !== 'manual';
   $$('#maxSeg button').forEach((b) => (b.disabled = !isHost));
   $('#sBetTime').disabled = $('#sActTime').disabled = !isHost || st.blitz;
   // seats
-  const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat, md.max, st.mode]);
+  const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat, md.max, st.mode, st.game]);
   if (S.sig.lobby !== lsig) {
     S.sig.lobby = lsig;
     const n = md.max, spread = [1, 1, .55, .7, .85, 1][n] ?? 1;
     const at = (i) => { const t = Math.PI * (i + .5) / n; return `--x:${(50 - 44 * spread * Math.cos(t)).toFixed(1)}%;--y:${(2 + 56 * Math.sin(t)).toFixed(1)}%;`; };
     $('#lobbySeats').dataset.n = n;
-    $('#lobbySeats').innerHTML = `<div class="arc-dealer">${st.mode === 'showdown' ? 'SHOWDOWN · NO DEALER' : 'DEALER'}</div>` + Array.from({ length: n }, (_, i) => {
+    $('#lobbySeats').innerHTML = `<div class="arc-dealer">${st.game === 'poker' ? "TEXAS HOLD'EM" : st.mode === 'showdown' ? 'SHOWDOWN · NO DEALER' : 'DEALER'}</div>` + Array.from({ length: n }, (_, i) => {
       const s = v.seats[i];
       if (!s) return `<div class="lseat" data-s="${i}" style="${at(i)}--c:var(--s${i})"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1}</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${ic('armchair')}${seated ? 'Move here' : 'Take seat'}</button></div>`;
       const mine = v.you.seat === i;
@@ -898,7 +1061,7 @@ function renderLobby(v) {
   if (open && me) $('#lobbyMine').innerHTML = `<button class="btn ${me.ready ? '' : 'primary'}" data-act="ready" data-val="${me.ready ? 0 : 1}">${me.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost" data-act="stand">Stand up</button><button class="btn ghost" data-act="profile">${ic('palette')}Avatar</button>`;
   const seatedN = v.seats.filter(Boolean).length, readyN = v.seats.filter((s) => s && s.ready).length;
   const need = md.min - seatedN;
-  if (!open) { $('#lobbyFoot').textContent = isHost ? 'Pick the game mode and rules, then open the table. Players choose their seats once it is open.' : `Waiting for ${v.host ? v.host.name : 'the host'} to set up the table…`; return; }
+  if (!open) { $('#lobbyFoot').textContent = isHost ? 'Pick the game and rules, then open the table. Players choose their seats once it is open.' : `Waiting for ${v.host ? v.host.name : 'the host'} to set up the table…`; return; }
   const range = md.min === md.max ? `${md.min}` : `${md.min}–${md.max}`;
   $('#lobbyFoot').textContent = need > 0 ? `${md.label} needs ${range} players. Waiting for ${need} more to take a seat. Everyone else spectates.` :
     v.canStart ? 'Starting…' :
@@ -978,16 +1141,16 @@ function renderOver(v) {
   S.sig.over = sig;
   const mode = modeOf(v), duel = mode === 'duel';
   const top = o.winner >= 0 ? rk.find((r) => r.seat === o.winner) : null;
-  const title = top ? (mode === 'tournament' ? `${esc(top.name)} wins the tournament` : duel || mode === 'showdown' || mode === 'classic' ? `${esc(top.name)} takes the pot` : '') : 'Dead heat';
+  const title = top ? (mode === 'holdem' ? `${esc(top.name)} wins the table` : mode === 'tournament' ? `${esc(top.name)} wins the tournament` : duel || mode === 'showdown' || mode === 'classic' ? `${esc(top.name)} takes the pot` : '') : 'Dead heat';
   const reason = { broke: duel ? 'Opponent is out of chips' : 'Last player standing', rounds: 'Round limit reached. Highest stack wins', forfeit: duel ? 'Opponent forfeited' : 'Everyone else left', disconnect: duel ? 'Opponent disconnected' : 'Everyone else left' }[o.reason] || '';
   const start = v.settings.startingBalance;
-  const stat = (r) => { const sx = v.seats[r.seat]; return sx && sx.name === r.name ? `${v.stats.w[r.seat]}W · ${v.stats.l[r.seat]}L · ${v.stats.p[r.seat]}P · ${v.stats.bj[r.seat]} BJ` : ''; };
+  const stat = (r) => { const sx = v.seats[r.seat]; return sx && sx.name === r.name ? (mode === 'holdem' ? `${v.stats.w[r.seat]} hands won · ${v.stats.l[r.seat]} lost` : `${v.stats.w[r.seat]}W · ${v.stats.l[r.seat]}L · ${v.stats.p[r.seat]}P · ${v.stats.bj[r.seat]} BJ`) : ''; };
   const body = rk.length <= 2
     ? `<div class="over-stats">${rk.map((r) => { const net = r.balance - start; return `<div class="d${r.place === 1 && o.winner >= 0 ? ' w' : ''}">${avatar(r.name, r.seat, 'sm')} <b style="display:inline">${esc(r.name)}</b><b>${fmt(r.balance)}</b><span class="${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span><div style="color:var(--dim);font-size:12px;margin-top:4px">${stat(r)}</div></div>`; }).join('')}</div>`
     : `<div class="rank-list">${rk.map((r) => { const net = r.balance - start; return `<div class="rk${r.place === 1 && o.winner >= 0 ? ' w' : ''}"><span class="pl">${r.place === 1 ? ic('crown') : place(r.place)}</span>${avatar(r.name, r.seat, 'sm')}<span class="nm"><b>${esc(r.name)}</b><small>${stat(r)}</small></span><span class="bl"><i class="coin"></i>${fmt(r.balance)}</span><span class="nt ${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span></div>`; }).join('')}</div>`;
   const seated = v.you.seat >= 0;
   const open = Array.from({ length: v.mode.max }, (_, i) => i).filter((i) => !v.seats[i]);
-  $('#overCard').innerHTML = `<div class="trophy">${ic(o.winner >= 0 ? 'trophy' : 'handshake')}</div><h2>${title || 'Match over'}</h2><div style="color:var(--dim)">${reason} · ${v.round} round${v.round === 1 ? '' : 's'}</div>
+  $('#overCard').innerHTML = `<div class="trophy">${ic(o.winner >= 0 ? 'trophy' : 'handshake')}</div><h2>${title || 'Match over'}</h2><div style="color:var(--dim)">${reason} · ${v.round} ${mode === 'holdem' ? 'hand' : 'round'}${v.round === 1 ? '' : 's'}</div>
     ${body}
     ${seated ? '<button class="btn primary big" id="backLobby">Back to lobby (rematch)</button>' : open.length ? '<div class="row" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' + open.map((i) => `<button class="btn primary" data-sit="${i}">Take seat ${i + 1}</button>`).join('') + '</div>' : '<div style="color:var(--dim)">Waiting for the players…</div>'}`;
   const bl = $('#backLobby'); if (bl) bl.addEventListener('click', () => act('lobby'));
@@ -998,7 +1161,7 @@ function renderOver(v) {
    side panel, rounds, chat
    ===================================================================== */
 function renderSide(v) {
-  const sig = JSON.stringify([v.seats.map((s) => s && [s.id, s.online, s.balance, s.alive]), v.members.map((m) => m.id), v.you.seat, v.phase, v.settings, v.limits, v.stats, v.series.length, v.open]);
+  const sig = JSON.stringify([v.seats.map((s) => s && [s.id, s.online, s.balance, s.alive]), v.members.map((m) => m.id), v.you.seat, v.phase, v.settings, v.limits, v.stats, v.series.length, v.open, v.poker && [v.poker.sb, v.poker.bb, v.poker.level]]);
   if (S.sig.side === sig) return;
   S.sig.side = sig;
   const lobbyish = ['lobby', 'over'].includes(v.phase), cap = lobbyish ? v.mode.max : NSEATS;
@@ -1017,17 +1180,30 @@ function renderSide(v) {
   const st = v.settings, mode = st.mode, lim = v.limits;
   const rules = [`<span class="mode-chip">${ic(MODES[mode].icon)}${MODES[mode].label}</span>`];
   if (st.blitz) rules.push(`<span class="mode-chip blitz">${ic('zap')}Blitz</span>`);
-  rules.push(`${st.decks} deck${st.decks > 1 ? 's' : ''}`);
-  if (mode !== 'showdown') rules.push(`BJ ${st.payout === 1.5 ? '3:2' : st.payout === 1.2 ? '6:5' : '1:1'}`, st.h17 ? 'H17' : 'S17');
-  rules.push(`Bet ${fmt(lim.min)}–${fmtMax(lim.max)}`);
-  if (mode === 'tournament') rules.push(`Level ${lim.level + 1}`, `Blinds ×1.5 / ${st.blindEvery} rds`);
-  rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' ? 'Until broke' : 'Until one left');
+  if (mode === 'holdem') {
+    const sb = v.poker ? v.poker.sb : st.sb, bb = v.poker ? v.poker.bb : st.sb * 2;
+    rules.push(`Blinds ${fmt(sb)}/${fmt(bb)}`);
+    if (st.levelEvery) rules.push(`Up ×1.5 / ${st.levelEvery} hands`, `Level ${(v.poker ? v.poker.level : 0) + 1}`);
+    rules.push(st.maxRounds ? `${st.maxRounds} hands` : 'Until one left');
+  } else {
+    rules.push(`${st.decks} deck${st.decks > 1 ? 's' : ''}`);
+    if (mode !== 'showdown') rules.push(`BJ ${st.payout === 1.5 ? '3:2' : st.payout === 1.2 ? '6:5' : '1:1'}`, st.h17 ? 'H17' : 'S17');
+    rules.push(`Bet ${fmt(lim.min)}–${fmtMax(lim.max)}`);
+    if (mode === 'tournament') rules.push(`Level ${lim.level + 1}`, `Blinds ×1.5 / ${st.blindEvery} rds`);
+    rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' ? 'Until broke' : 'Until one left');
+  }
   $('#rules').innerHTML = rules.map((t) => (t.startsWith('<span') ? t : `<span>${t}</span>`)).join('');
+  if (mode === 'holdem') {
+    const sb = v.poker ? v.poker.sb : st.sb, bb = v.poker ? v.poker.bb : st.sb * 2;
+    $('#ftPay2').textContent = $('#ftPay').textContent = "TEXAS HOLD'EM";
+    $('#ftRule2').textContent = $('#ftRule').textContent = `BLINDS ${fmt(sb)} / ${fmt(bb)} · NO LIMIT`;
+  } else {
   $('#ftPay2').textContent = $('#ftPay').textContent = mode === 'showdown' ? 'SHOWDOWN · BEST HAND TAKES THE POT' : `BLACKJACK PAYS ${st.payout === 1.5 ? '3 TO 2' : st.payout === 1.2 ? '6 TO 5' : '1 TO 1'}`;
   $('#ftRule2').textContent = $('#ftRule').textContent = mode === 'showdown' ? 'NO DEALER · NATURAL BLACKJACK BEATS 21' : st.h17 ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
+  }
   const seatedIdx = v.seats.map((x, i) => (x ? i : -1)).filter((i) => i >= 0);
   $('#duel').classList.toggle('cols3', seatedIdx.length > 4);
-  $('#duel').innerHTML = (seatedIdx.length ? seatedIdx : [0, 1]).map((i) => { const x = v.seats[i]; return `<div class="d"><small>${x ? esc(x.name) : 'Seat ' + (i + 1)}</small><b style="color:${x ? colorOf(x.name, i) : seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ</small></div>`; }).join('');
+  $('#duel').innerHTML = (seatedIdx.length ? seatedIdx : [0, 1]).map((i) => { const x = v.seats[i]; return `<div class="d"><small>${x ? esc(x.name) : 'Seat ' + (i + 1)}</small><b style="color:${x ? colorOf(x.name, i) : seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>${mode === 'holdem' ? `hands won–lost · ${v.stats.p[i]} split` : `W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ`}</small></div>`; }).join('');
   drawSpark(v);
 }
 function drawSpark(v) {
@@ -1041,12 +1217,19 @@ function drawSpark(v) {
 
 const mc = (c) => `<span class="mc${isRed(c) ? ' r' : ''}">${c.slice(0, -1)}${SYM[c.slice(-1)]}</span>`;
 function renderRounds(v) {
-  const sig = v.history.length ? `${v.history.length}:${v.history[v.history.length - 1].r}:${v.history[0].r}` : '0';
+  const sig = (v.game || '') + (v.history.length ? `${v.history.length}:${v.history[v.history.length - 1].r}:${v.history[0].r}` : '0');
   if (S.sig.rounds === sig) return;
   S.sig.rounds = sig;
   $('#rempty').classList.toggle('hidden', v.history.length > 0);
   const label = { win: 'WIN', lose: 'LOSE', push: 'PUSH', bust: 'BUST', blackjack: 'BJ' };
+  const pkG = v.game === 'poker';
+  $('#rhDealer').textContent = pkG ? 'Board' : 'Dealer'; $('#rhBet').textContent = pkG ? 'Pot' : 'Bet';
+  $('#rempty').textContent = pkG ? 'No hands yet. Deal in.' : 'No rounds yet. Place a bet.';
   $('#rbody').innerHTML = [...v.history].reverse().map((h) =>
+    h.poker ? h.seats.map((s, i) => `<div class="rrow"><span>${i === 0 ? '#' + h.r : ''}</span><span class="pl">${avatar(s.name, s.seat, 'sm')}<span>${esc(s.name)}</span></span>
+      <span>${s.folded ? '<span class="o">FOLDED</span>' : (s.cards ? s.cards.map((c) => (c ? mc(c) : '')).join('') : '') + (s.hand ? `<span class="o ${s.net > 0 ? 'pos' : ''}">${esc(s.hand)}</span>` : '')}</span>
+      <span>${i === 0 ? (h.board && h.board.length ? h.board.map(mc).join('') : '<span class="o">No flop</span>') : ''}</span>
+      <span>${i === 0 ? fmt(h.pot) : ''}</span><span class="${s.net > 0 ? 'pos' : s.net < 0 ? 'neg' : ''}"><b>${s.net > 0 ? '+' : s.net < 0 ? '−' : ''}${fmt(Math.abs(s.net))}</b></span></div>`).join('') :
     h.seats.map((s, i) => {
       const bet = s.hands.reduce((a, x) => a + x.bet, 0);
       return `<div class="rrow"><span>${i === 0 ? '#' + h.r : ''}</span><span class="pl">${avatar(s.name, s.seat, 'sm')}<span>${esc(s.name)}</span></span>
@@ -1077,12 +1260,13 @@ function sysNode(m) {
     case 'resume': return pill('play', D.auto ? 'Game resumed automatically' : `${nm(D.n)} resumed the game`);
     case 'ins': return pill('shield', D.win ? `${nm(D.n)}'s insurance pays ${fmt(D.amt * 2)}` : `${nm(D.n)} loses the ${fmt(D.amt)} insurance`);
     case 'even': return pill('shield', `${nm(D.n)} takes even money`);
-    case 'timeout': return pill('timer', `${nm(D.n)} timed out, auto-stand`);
+    case 'timeout': return pill('timer', `${nm(D.n)} timed out, auto-${D.poker || 'stand'}`);
+    case 'phand': return pill('trophy', `${nm(D.n)} wins ${fmt(D.amt)} with ${esc(D.hand)}`);
     case 'forfeit': return pill('flag', `${nm(D.n)} forfeited`);
     case 'dc': return pill('wifi-off', `${nm(D.n)} disconnected`);
     case 'draw': return pill('handshake', D.names ? `Draw between ${D.names.map((n) => nm(n)).join(', ')}` : 'The match ends in a draw');
     case 'out': return pill('skull', D.tourney ? `${nm(D.n)} eliminated · ${place(D.place)}` : `${nm(D.n)} is out of chips`);
-    case 'level': return pill('trending-up', `Blinds up: bets ${fmt(D.min)}–${fmtMax(D.max)}`);
+    case 'level': return pill('trending-up', D.poker ? `Blinds up: ${fmt(D.sb)}/${fmt(D.bb)}` : `Blinds up: bets ${fmt(D.min)}–${fmtMax(D.max)}`);
     case 'start': {
       const names = D.names || [D.a, D.b], seats = D.seats || [0, 1], md = MODES[D.mode] || MODES.duel;
       const chips = names.map((n, k) => `<span class="pc">${avatar(n, seats[k], 'sm')}<b>${esc(n)}</b></span>`);
@@ -1091,7 +1275,7 @@ function sysNode(m) {
         <div class="ev-sub"><i class="coin"></i>Starting stack <b>${fmt(D.stack)}</b></div>`);
     }
     case 'round':
-      return card('ev-round', `<div class="ev-h">${ic('spade')}<span>Round ${D.r}</span></div>` + D.p.map((p, i) => {
+      return card('ev-round', `<div class="ev-h">${ic('spade')}<span>${D.poker ? 'Hand' : 'Round'} ${D.r}</span></div>` + D.p.map((p, i) => {
         const up = p.net > 0, dn = p.net < 0;
         return `<div class="rr ${up ? 'up' : dn ? 'dn' : 'eq'}">${avatar(p.n, p.s != null ? p.s : i, 'sm')}<span class="rn">${esc(p.n)}</span>
           <span class="rv">${ic(up ? 'trending-up' : dn ? 'trending-down' : 'equal')}${up ? '+' : dn ? '−' : ''}${fmt(Math.abs(p.net))}</span>
@@ -1185,28 +1369,39 @@ function render(v, prev) {
   $('#roomName').textContent = v.room;
   // transitions
   if (prev && !S.instant) {
-    if (v.legal && !prev.legal) { sfx.turn(); if (document.hidden) document.title = '🔔 Your move · Degen 21'; }
-    if (v.phase === 'settled' && prev.phase !== 'settled' && v.you.seat >= 0 && v.results) {
-      const n = (v.results[v.you.seat] || []).reduce((a, r) => a + r.net, 0);
+    if ((isPk(v) ? v.poker.legal && !(prev.poker && prev.poker.legal) : v.legal && !prev.legal)) { sfx.turn(); if (document.hidden) document.title = '🔔 Your move · Degen 21'; }
+    if (v.phase === 'settled' && prev.phase !== 'settled' && v.you.seat >= 0 && (isPk(v) ? v.poker.res : v.results)) {
+      const n = isPk(v) ? (v.poker.res[v.you.seat] ? v.poker.res[v.you.seat].net : 0) : (v.results[v.you.seat] || []).reduce((a, r) => a + r.net, 0);
       setTimeout(() => (n > 0 ? sfx.win() : n < 0 ? sfx.lose() : sfx.push()), 120);
     }
     if (v.phase === 'betting' && prev.phase !== 'betting') $('#felt').classList.remove('flash');
   }
+  document.body.dataset.game = v.game || 'blackjack';
+  $('#felt').dataset.game = v.game || 'blackjack';
   renderDealer(v);
   const nSeated = v.seats.filter(Boolean).length;
-  const sEl = $('#seats'); sEl.dataset.m = v.mode.max; sEl.dataset.n = nSeated; sEl.classList.toggle('dense', nSeated >= 3);
-  $('#felt').classList.toggle('showdown', modeOf(v) === 'showdown');
+  const pkLayout = isPk(v), seatedIdx = v.seats.map((x, i) => (x ? i : -1)).filter((i) => i >= 0);
+  const nPos = pkLayout ? Math.max(2, seatedIdx.length) : v.mode.max; // poker seats are spread evenly around the rail
+  const sEl = $('#seats'); sEl.dataset.m = nPos; sEl.dataset.n = nSeated; sEl.classList.toggle('dense', nSeated >= 3);
+  $('#felt').classList.toggle('showdown', modeOf(v) === 'showdown' && !isPk(v));
   $('#tablebox').classList.toggle('tall', nSeated >= 5);
   // seats keep the slot they chose on the curved table (wide screens); positions follow the mode's seat count
-  { const n = v.mode.max, sp = [1, 1, .55, .7, .85, 1][n] ?? 1;
-    for (let i = 0; i < NSEATS; i++) { const t = Math.PI * (i + .5) / n; seatNodes[i].style.setProperty('--x', (50 - 41 * sp * Math.cos(t)).toFixed(1) + '%'); seatNodes[i].style.setProperty('--y', (27 + 46 * Math.sin(t)).toFixed(1) + '%'); } }
+  { const n = nPos, sp = [1, 1, .55, .7, .85, 1][n] ?? 1;
+    const fw = $('#felt').clientWidth || 1000, fh = $('#felt').clientHeight || 600;
+    for (let i = 0; i < NSEATS; i++) {
+      const t = Math.PI * ((pkLayout ? Math.max(0, seatedIdx.indexOf(i)) : i) + .5) / n, x = 50 - 41 * sp * Math.cos(t), y = 27 + 46 * Math.sin(t);
+      seatNodes[i].style.setProperty('--x', x.toFixed(1) + '%'); seatNodes[i].style.setProperty('--y', y.toFixed(1) + '%');
+      // poker: slide each seat's street bet toward the middle of the table
+      const dx = (50 - x) * fw / 100, dy = (40 - y) * fh / 100, d = Math.hypot(dx, dy) || 1, k = Math.min(86, d * 0.45) / d;
+      seatNodes[i].style.setProperty('--bdx', (dx * k).toFixed(0) + 'px'); seatNodes[i].style.setProperty('--bdy', (dy * k).toFixed(0) + 'px');
+    } }
   for (let i = 0; i < NSEATS; i++) renderSeat(i, v, prev);
   renderBanner(v);
   renderDock(v);
   $('#tablebox').classList.toggle('setup', v.phase === 'lobby' || v.phase === 'over');
   renderLobby(v); renderOver(v);
   renderSide(v); renderRounds(v); renderChat(v);
-  $('#shoeCount').textContent = v.phase === 'lobby' ? '' : `SHOE ${v.shoeLeft}`;
+  $('#shoeCount').textContent = v.phase === 'lobby' || isPk(v) ? '' : `SHOE ${v.shoeLeft}`;
   tickUI();
 }
 
@@ -1219,7 +1414,7 @@ function tickUI() {
   const frac = v.timerDur ? Math.min(1, remain / v.timerDur) : 0;
   const low = remain > 0 && remain < 6000;
   seatNodes.forEach((n, i) => {
-    const on = v.timerAt && ((v.timerKind === 'action' && v.turn && v.turn.seat === i) || (v.timerKind === 'bet' && v.seats[i] && v.seats[i].alive && v.seats[i].bet == null));
+    const on = v.timerAt && ((v.timerKind === 'action' && (isPk(v) ? v.poker.to === i : v.turn && v.turn.seat === i)) || (v.timerKind === 'bet' && v.seats[i] && v.seats[i].alive && v.seats[i].bet == null));
     const t = n.querySelector('.timer');
     t.classList.toggle('on', !!on); t.classList.toggle('low', !!on && low);
     if (on) t.firstElementChild.style.transform = `scaleX(${frac})`;
@@ -1229,10 +1424,12 @@ function tickUI() {
   });
   const showBar = v.timerAt && (v.timerKind === 'bet' || v.timerKind === 'action' || v.timerKind === 'ins');
   $('#insBar').style.transform = `scaleX(${frac})`;
+  $('#pkBar').parentElement.style.visibility = showBar ? 'visible' : 'hidden';
+  $('#pkBar').style.transform = `scaleX(${frac})`;
   $('#waitBar').parentElement.style.visibility = showBar ? 'visible' : 'hidden';
   $('#waitBar').style.transform = `scaleX(${frac})`;
   if (v.phase === 'settled' && v.timerKind === 'next' && v.you.seat >= 0)
-    $('#nextTxt').textContent = v.over ? 'Final round' : `Next round in ${Math.ceil(remain / 1000)}s`;
+    $('#nextTxt').textContent = v.over ? (isPk(v) ? 'Final hand' : 'Final round') : `Next ${isPk(v) ? 'hand' : 'round'} in ${Math.ceil(remain / 1000)}s`;
 }
 setInterval(tickUI, 100);
 
@@ -1253,6 +1450,13 @@ addEventListener('keydown', (e) => {
   if (typing || !S.view || appEl.classList.contains('hidden')) return;
   if (S.view.paused) return;
   const k = e.key.toLowerCase();
+  if (isPk(S.view)) {
+    if (k === 'f') pkAct('fold');
+    else if (k === 'c') pkAct('call');
+    else if (k === 'r') pkAct('raise', { to: pkState.to });
+    else if (e.key === 'Enter' && dock.next.classList.contains('on') && !$('#nextBtn').disabled) act('next');
+    return;
+  }
   if (k === 'h') doAction('hit');
   else if (k === 's') doAction('stand_hand');
   else if (k === 'd') doAction('double');

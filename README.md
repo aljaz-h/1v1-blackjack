@@ -16,7 +16,8 @@
 ## ✨ Highlights
 
 - 🪑 **Real table feel**: curved felt, arc seating, chip rack, shoe, flying chips and card flips.
-- 🎲 **Four modes**: Duel, Classic, Showdown and Tournament, plus a **Blitz** timer toggle.
+- 🎲 **Two games, one table**: pick **Degen 21** (blackjack, four modes) or **Degen Poker** (Texas Hold'em) when you set up the room, plus a **Blitz** timer toggle.
+- ♠️ **Texas Hold'em**: 2-6 players, no limit, side pots, split pots, optional rising blinds, hole cards hidden server side until showdown.
 - 🛡️ **Real casino rules**: insurance and even money when the dealer shows an Ace, split, double, all in, and a max bet that is auto, custom or unlimited.
 - 👑 **Host-run rooms**: the first in sets the rules, opens the table, everyone picks a seat, and the host can pause the match.
 - 🔐 **Zero accounts**: one master password, a display name and a room code.
@@ -37,12 +38,16 @@
 
 ## 🃏 Game modes
 
+**Degen 21** (blackjack):
+
 | Mode | Players | Goal |
 |---|---|---|
 | **Duel** | 2 | Two players each play the dealer. Last one with chips wins. |
 | **Classic** | 2-6 | Everyone plays the dealer until one stack is left or the round limit hits. |
 | **Showdown** | 2-6 | No dealer. Best hand takes the pot, with side pots for unequal bets. |
 | **Tournament** | 3-6 | Bet limits rise each round, run out of chips and you are out. |
+
+**Degen Poker** is cash-game style No-Limit Texas Hold'em for 2-6 players: choose the small blind (big blind is double), starting stack, an optional blind increase every N hands and a hand limit. Run out of chips and you are out, last stack standing wins.
 
 Blitz adds an 8 second clock to every bet and move. Rooms hold up to 6 seats plus spectators, the server keeps at most 10 rooms, and idle rooms expire after an hour.
 
