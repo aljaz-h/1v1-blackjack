@@ -729,3 +729,29 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 #volRange::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 #volRange::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .topbar{position:relative;z-index:50}
+
+.autotog{float:right;display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:11px;color:var(--dim)}.autotog input{width:auto;margin:0}.autotog label{margin:0;cursor:pointer;font-size:11px}
+#sMax:disabled{opacity:.6}
+
+/* split hands on the curved table: keep them side by side (wrapping pushed the seat off the felt) */
+@container (min-width:560px){
+  .seats .seat.multi{max-width:none;--cw:calc(var(--cwb)*.66)}
+  .seats .seat.multi .hands{flex-wrap:nowrap;gap:0 10px;min-height:calc(var(--cw)*1.42 + 34px)}
+  .seats .seat.multi .hand{flex:none}
+}
+@container (min-width:560px) and (max-width:760px){
+  .seats .seat.multi{--cw:calc(var(--cwb)*.58)}
+}
+@container (min-width:560px){
+  .seats .seat.multi{left:clamp(140px,var(--x),calc(100% - 140px));margin-top:-16px}
+}
+@container (min-width:560px){
+  .seats .seat.multi{margin-top:-32px;z-index:5} /* the splitting player's hands sit above neighbours */
+}
+
+/* stacked layout on short screens: make table + action bar fit the viewport so the bar never covers the bottom seats */
+@media (min-width:641px) and (max-width:1180px){
+  .tablebox{height:max(500px,calc(100dvh - 72px))}
+  .felt{min-height:0}
+}
+@media (max-height:760px){ @container (min-width:560px){ .seats .seat.multi{margin-top:-52px} } }

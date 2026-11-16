@@ -806,12 +806,14 @@ const setIds = { startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax',
 function collectSettings(over = {}) {
   return {
     mode: S.view ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
-    startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value,
+    startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value, maxBetAuto: $('#sMaxAuto').checked,
     decks: +$('#sDecks').value, payout: +$('#sPayout').value, h17: $('#sH17').value === '1',
     maxRounds: +$('#sRounds').value, blindEvery: +$('#sBlind').value, betTime: +$('#sBetTime').value, actionTime: +$('#sActTime').value,
     ...over,
   };
 }
+// typing your own max bet switches Auto off
+$('#sMax').addEventListener('input', () => { $('#sMaxAuto').checked = false; });
 $$('#settings input, #settings select').forEach((el) => el.addEventListener('change', () => act('settings', { settings: collectSettings() })));
 $$('#balPresets button').forEach((b) => b.addEventListener('click', () => { $('#sBalance').value = b.dataset.v; act('settings', { settings: collectSettings() }); }));
 $('#modeSel').innerHTML = Object.entries(MODES).map(([id, m]) => `<button type="button" data-mode="${id}">${ic(m.icon)}<span>${m.label}</span></button>`).join('');
@@ -837,6 +839,7 @@ function renderLobby(v) {
     const set = (sel, val) => { const el = $(sel); if (document.activeElement !== el) el.value = String(val); };
     for (const [k, sel] of Object.entries(setIds)) set(sel, st[k]);
     set('#sH17', st.h17 ? '1' : '0');
+    $('#sMaxAuto').checked = !!st.maxBetAuto;
     $('#sBlitz').checked = !!st.blitz;
     $$('#modeSel button').forEach((b) => b.classList.toggle('on', b.dataset.mode === st.mode));
     $('#modeDesc').textContent = (MODES[st.mode] || MODES.duel).desc;
@@ -844,6 +847,7 @@ function renderLobby(v) {
     $('#sRounds').options[0].textContent = st.mode === 'duel' ? 'Until broke' : 'Until one left';
   }
   $$('#settings input, #settings select, #balPresets button, #modeSel button').forEach((el) => (el.disabled = !isHost));
+  $('#sMax').disabled = !isHost || !!st.maxBetAuto;
   $('#sBetTime').disabled = $('#sActTime').disabled = !isHost || st.blitz;
   // seats
   const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat, md.max, st.mode]);

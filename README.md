@@ -23,11 +23,16 @@
 - 🔊 **Soft synthesized sounds**, keyboard hotkeys, mobile friendly.
 - 🧩 **Zero dependencies**: plain Node server, vanilla JS front end, live updates over SSE.
 
-<div align="center">
-<img src="docs/screenshots/lobby.png" alt="Lobby" width="440"> <img src="docs/screenshots/results.png" alt="Round results" width="440">
-<br>
-<img src="docs/screenshots/login.png" alt="Login" width="440"> <img src="docs/screenshots/mobile.png" alt="Mobile" height="247">
-</div>
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/screenshots/lobby.png" alt="Lobby"><br><sub><b>Host sets the table</b>, everyone picks a seat</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/results.png" alt="Round results"><br><sub><b>Round results</b> and live history</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="middle"><img src="docs/screenshots/login.png" alt="Login"><br><sub><b>One password</b>, no accounts</sub></td>
+    <td width="50%" align="center" valign="middle"><img src="docs/screenshots/mobile.png" alt="Mobile view" height="270"><br><sub><b>Plays great on phones</b></sub></td>
+  </tr>
+</table>
 
 ## 🃏 Game modes
 

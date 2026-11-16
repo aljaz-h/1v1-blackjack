@@ -539,3 +539,18 @@ test('pause is not allowed in the lobby and auto-resumes after 15 minutes', () =
   E.tick(st, now0 + 16 * 60_000);
   assert.strictEqual(st.paused, null);
 });
+
+test('max bet scales with the starting balance until set manually', () => {
+  const st = newRoom('m', now0);
+  E.applyAction(st, A, { type: 'join' }, now0);
+  const set = (settings) => { E.applyAction(st, A, { type: 'settings', settings }, now0); return st.settings; };
+  assert.strictEqual(st.settings.maxBetAuto, true);
+  assert.strictEqual(set({ startingBalance: 1000 }).maxBet, 500);
+  assert.strictEqual(set({ startingBalance: 5000 }).maxBet, 2500);
+  assert.strictEqual(set({ startingBalance: 100000 }).maxBet, 50000);
+  assert.strictEqual(set({ startingBalance: 500 }).maxBet, 250);
+  const m = set({ maxBetAuto: false, maxBet: 700 });
+  assert.strictEqual(m.maxBet, 700);
+  assert.strictEqual(set({ startingBalance: 10000 }).maxBet, 700); // manual value is kept
+  assert.strictEqual(set({ maxBetAuto: true }).maxBet, 5000);
+});
