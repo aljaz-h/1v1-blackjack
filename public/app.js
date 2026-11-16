@@ -1,0 +1,786 @@
+(() => {
+'use strict';
+
+/* =====================================================================
+   helpers
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fmt = (n) => Number(n).toLocaleString('en-US');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const short = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? +(n / 1e3).toFixed(1) + 'K' : n >= 1e3 ? +(n / 1e3).toFixed(1) + 'K' : String(n));
+const SYM = { S: '♠', H: '♥', D: '♦', C: '♣' };
+const DENOMS = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000, 25000, 100000];
+const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const seatColor = (i) => (i === 0 ? 'var(--s0)' : i === 1 ? 'var(--s1)' : '');
+const avatar = (name, seat, cls = '') =>
+  `<span class="avatar ${cls}" style="--c:${seat >= 0 ? seatColor(seat) : `hsl(${hue(name)} 80% 70%)`}">${esc((name[0] || '?').toUpperCase())}</span>`;
+const chipClass = (n) => 'k' + ([...DENOMS].reverse().find((d) => d <= n) || 1);
+
+function cardValue(c) { const r = c.slice(0, -1); return r === 'A' ? 11 : 'KQJ'.includes(r) || r === '10' ? 10 : +r; }
+function handTotal(cards) {
+  let t = 0, a = 0;
+  for (const c of cards) { const v = cardValue(c); t += v; if (v === 11) a++; }
+  while (t > 21 && a) { t -= 10; a--; }
+  return { total: t, soft: a > 0 };
+}
+const isRed = (c) => c && (c.endsWith('H') || c.endsWith('D'));
+
+/* =====================================================================
+   sound (all synthesised, no assets)
+   ===================================================================== */
+const sfx = (() => {
+  let ctx = null, master = null, muted = localStorage.getItem('bj.mute') === '1';
+  function ensure() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.55; master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(freq, t, dur, { type = 'sine', gain = 0.15, slide = 0 } = {}) {
+    const c = muted ? null : ensure(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + t;
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.03);
+  }
+  function noise(t, dur, { gain = 0.2, freq = 2500 } = {}) {
+    const c = muted ? null : ensure(); if (!c) return;
+    const n = (c.sampleRate * dur) | 0, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; g.gain.value = gain;
+    s.connect(f); f.connect(g); g.connect(master); s.start(c.currentTime + t);
+  }
+  return {
+    unlock: ensure,
+    get muted() { return muted; },
+    setMuted(m) { muted = m; localStorage.setItem('bj.mute', m ? '1' : '0'); },
+    deal(t = 0) { noise(t, 0.09, { gain: 0.28, freq: 3200 }); },
+    flip(t = 0) { noise(t, 0.07, { gain: 0.2, freq: 1800 }); tone(520, t, 0.05, { type: 'triangle', gain: 0.05 }); },
+    chip() { tone(1800, 0, 0.04, { type: 'square', gain: 0.035 }); tone(1300, 0.035, 0.05, { type: 'square', gain: 0.035 }); },
+    turn() { tone(660, 0, 0.12, { gain: 0.1 }); tone(880, 0.1, 0.16, { gain: 0.1 }); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.08, 0.24, { type: 'triangle', gain: 0.12 })); },
+    lose() { tone(220, 0, 0.4, { type: 'sawtooth', gain: 0.07, slide: -120 }); },
+    push() { tone(440, 0, 0.15, { gain: 0.08 }); tone(440, 0.17, 0.15, { gain: 0.08 }); },
+  };
+})();
+['pointerdown', 'keydown'].forEach((e) => addEventListener(e, () => sfx.unlock(), { once: true, passive: true }));
+
+function toast(msg, kind = '') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind; t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2600);
+}
+
+function countTo(el, to) {
+  const from = el._v ?? to;
+  el._v = to;
+  cancelAnimationFrame(el._r);
+  if (from === to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 600;
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(Math.round(from + (to - from) * e));
+    if (k < 1) el._r = requestAnimationFrame(step);
+  };
+  el._r = requestAnimationFrame(step);
+}
+
+/* =====================================================================
+   state + network
+   ===================================================================== */
+const S = {
+  token: localStorage.getItem('bj.token') || '',
+  id: localStorage.getItem('bj.id') || '',
+  name: localStorage.getItem('bj.name') || '',
+  room: 'main',
+  view: null, skew: 0, gen: 0, ac: null, conn: 'off',
+  instant: true, pending: 0, betRound: -1, sig: {},
+};
+const serverNow = () => Date.now() + S.skew;
+
+async function post(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}) },
+    body: JSON.stringify(body),
+  });
+  let j = {};
+  try { j = await r.json(); } catch { /* ignore */ }
+  if (!r.ok) { const e = new Error(j.message || j.error || 'Request failed'); e.code = j.error; e.status = r.status; throw e; }
+  return j;
+}
+
+async function act(type, extra = {}) {
+  try {
+    const r = await post('/api/act', { room: S.room, type, seq: S.view ? S.view.seq : undefined, ...extra });
+    if (r.view) applyView(r.view);
+    return true;
+  } catch (e) {
+    if (e.status === 401) { logout('Session expired. Sign in again.'); return false; }
+    if (e.code !== 'stale') toast(e.message, 'bad');
+    return false;
+  }
+}
+
+function setConn(c) {
+  S.conn = c;
+  $('#connDot').className = 'dot ' + (c === 'live' ? 'live' : c === 'off' ? 'off' : '');
+}
+
+async function streamLoop(gen) {
+  let delay = 300;
+  while (S.gen === gen) {
+    const ac = new AbortController();
+    S.ac = ac;
+    let lastByte = Date.now(), healthy = false;
+    const wd = setInterval(() => { if (Date.now() - lastByte > 30000) ac.abort(); }, 5000);
+    try {
+      const r = await fetch('/api/stream?room=' + encodeURIComponent(S.room), { headers: { Authorization: 'Bearer ' + S.token }, signal: ac.signal, cache: 'no-store' });
+      if (r.status === 401) { logout('Session expired. Sign in again.'); return; }
+      if (!r.ok) throw new Error('http ' + r.status);
+      setConn('live'); healthy = true; delay = 300;
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        lastByte = Date.now();
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const part = buf.slice(0, i); buf = buf.slice(i + 2);
+          const line = part.split('\n').find((l) => l.startsWith('data: '));
+          if (line) { try { applyView(JSON.parse(line.slice(6))); } catch { /* ignore */ } }
+        }
+      }
+    } catch { /* fallthrough to retry */ }
+    finally { clearInterval(wd); }
+    if (S.gen !== gen) return;
+    if (!healthy) {
+      setConn('retry');
+      // fallback: keep the table fresh by polling while the stream is down
+      try {
+        const r = await fetch('/api/state?room=' + encodeURIComponent(S.room), { headers: { Authorization: 'Bearer ' + S.token }, cache: 'no-store' });
+        if (r.status === 401) { logout('Session expired. Sign in again.'); return; }
+        if (r.ok) applyView((await r.json()).view);
+      } catch { setConn('off'); }
+    }
+    await sleep(healthy ? 60 : delay);
+    delay = Math.min(delay * 1.6, 4000);
+  }
+}
+
+function applyView(v) {
+  if (S.view && v.v < S.view.v) return;
+  const prev = S.view;
+  S.view = v;
+  S.skew = v.now - Date.now();
+  render(v, prev);
+  S.instant = false;
+}
+
+/* =====================================================================
+   login / logout
+   ===================================================================== */
+const loginEl = $('#login'), appEl = $('#app');
+function showLogin(msg) {
+  appEl.classList.add('hidden'); loginEl.classList.remove('hidden');
+  $('#loginErr').textContent = msg || '';
+  $('#inName').value = S.name || '';
+  $('#inRoom').value = new URLSearchParams(location.search).get('room') || localStorage.getItem('bj.room') || '';
+  $('#inPass').value = '';
+  (S.name ? $('#inPass') : $('#inName')).focus();
+}
+
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#loginBtn');
+  btn.disabled = true; $('#loginErr').textContent = '';
+  try {
+    const r = await post('/api/login', { name: $('#inName').value, password: $('#inPass').value, id: S.id });
+    S.token = r.token; S.id = r.id; S.name = r.name;
+    S.room = ($('#inRoom').value || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
+    localStorage.setItem('bj.token', S.token); localStorage.setItem('bj.id', S.id); localStorage.setItem('bj.name', S.name); localStorage.setItem('bj.room', S.room === 'main' ? '' : S.room);
+    sfx.unlock();
+    await enter();
+  } catch (err) {
+    $('#loginErr').textContent = err.message;
+    const c = $('.login-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+  } finally { btn.disabled = false; }
+});
+
+async function enter() {
+  S.gen++;
+  S.view = null; S.instant = true; S.sig = {};
+  $('#msgs').innerHTML = ''; S.chatLast = 0;
+  try {
+    const r = await post('/api/act', { room: S.room, type: 'join' });
+    loginEl.classList.add('hidden'); appEl.classList.remove('hidden');
+    $('#meName').textContent = S.name; $('#meAvatar').outerHTML = avatar(S.name, -1, 'sm').replace('class="avatar', 'id="meAvatar" class="avatar');
+    $('#roomName').textContent = S.room;
+    $('#soundBtn').textContent = sfx.muted ? '🔇' : '🔊';
+    history.replaceState(null, '', S.room === 'main' ? location.pathname : `?room=${S.room}`);
+    applyView(r.view);
+    streamLoop(S.gen);
+  } catch (e) {
+    if (e.status === 401) { S.token = ''; localStorage.removeItem('bj.token'); }
+    showLogin(e.status === 401 ? '' : e.message);
+    throw e;
+  }
+}
+
+async function logout(msg) {
+  S.gen++;
+  if (S.ac) S.ac.abort();
+  S.token = ''; localStorage.removeItem('bj.token');
+  S.view = null; setConn('off');
+  showLogin(msg);
+}
+
+$('#logoutBtn').addEventListener('click', async () => {
+  const v = S.view;
+  if (v && v.you.seat >= 0) {
+    if (['betting', 'playing', 'dealer', 'settled'].includes(v.phase) && !v.over) {
+      if (!confirm('Leaving mid-match forfeits it. Leave anyway?')) return;
+      await act('forfeit');
+    } else if (v.phase === 'lobby' || v.phase === 'over') await act('stand');
+  }
+  logout('');
+});
+$('#forfeitBtn').addEventListener('click', () => { if (confirm('Forfeit the match? Your opponent wins.')) act('forfeit'); });
+$('#roomPill').addEventListener('click', async () => {
+  const url = `${location.origin}${location.pathname}?room=${S.room}`;
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied'); } catch { toast(url); }
+});
+$('#soundBtn').addEventListener('click', () => { sfx.setMuted(!sfx.muted); $('#soundBtn').textContent = sfx.muted ? '🔇' : '🔊'; sfx.unlock(); sfx.chip(); });
+$$('.mtabs button').forEach((b) => b.addEventListener('click', () => {
+  document.body.dataset.tab = b.dataset.t;
+  $$('.mtabs button').forEach((x) => x.classList.toggle('on', x === b));
+}));
+
+/* =====================================================================
+   cards
+   ===================================================================== */
+function cardFront(c) {
+  const r = c.slice(0, -1), s = SYM[c.slice(-1)], face = 'JQK'.includes(r);
+  return `<span class="c tl"><b>${r}</b><i>${s}</i></span><div class="mid${face ? ' face-l' : ''}">${face ? `${r}<small>${s}</small>` : s}</div><span class="c br"><b>${r}</b><i>${s}</i></span>`;
+}
+function makeCard(c, animate, delay) {
+  const n = document.createElement('div');
+  n.className = 'card' + (isRed(c) ? ' red' : '');
+  n.dataset.c = c || '';
+  n.innerHTML = '<div class="inner"><div class="face back">♠</div><div class="face front"></div></div>';
+  if (c) { n.querySelector('.front').innerHTML = cardFront(c); n.classList.add('up'); }
+  if (animate) {
+    n.classList.add('deal'); n.style.setProperty('--d', delay + 'ms');
+    n.addEventListener('animationend', () => n.classList.remove('deal'), { once: true });
+    sfx.deal(delay / 1000);
+  }
+  return n;
+}
+function revealCard(n, c) {
+  n.querySelector('.front').innerHTML = cardFront(c);
+  n.classList.toggle('red', isRed(c));
+  n.dataset.c = c;
+  void n.offsetWidth;
+  n.classList.add('up');
+  sfx.flip();
+}
+function syncCards(box, list, delayFn) {
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    const n = box.children[i];
+    if (!n) { box.appendChild(makeCard(c, !S.instant, delayFn(i))); continue; }
+    const cur = n.dataset.c;
+    if (cur === (c || '')) continue;
+    if (!cur && c) revealCard(n, c);
+    else box.replaceChild(makeCard(c, !S.instant, 0), n);
+  }
+  while (box.children.length > list.length) box.lastChild.remove();
+}
+
+function setTotal(el, cards, { bj = false, hidden = false } = {}) {
+  const real = cards.filter(Boolean);
+  el.className = 'total'; el.textContent = '';
+  if (!real.length) return;
+  if (hidden) { el.textContent = handTotal([real[0]]).total; return; }
+  const { total, soft } = handTotal(real);
+  if (bj) { el.classList.add('bj'); el.textContent = 'BLACKJACK'; return; }
+  if (total > 21) { el.classList.add('bust'); el.textContent = 'BUST ' + total; return; }
+  el.textContent = total;
+  if (soft && total < 21) { const s = document.createElement('small'); s.textContent = 'soft'; el.appendChild(s); }
+}
+
+/* =====================================================================
+   table DOM (built once)
+   ===================================================================== */
+const seatsEl = $('#seats');
+const seatNodes = [0, 1].map((i) => {
+  const d = document.createElement('div');
+  d.className = 'seat'; d.dataset.seat = i;
+  d.innerHTML = `<div class="emptytxt"></div>
+    <div class="seat-head"><span class="avatar"></span><div class="who"><div class="name"></div><div class="bal"><i class="coin"></i><b>0</b></div></div><div class="badges"></div></div>
+    <div class="timer"><i></i></div><div class="hands"></div><div class="betrow"></div><div class="float"></div>`;
+  seatsEl.appendChild(d);
+  return d;
+});
+
+function dealerVisible(v) {
+  const cards = v.dealer.cards;
+  if (v.phase !== 'dealer') return cards;
+  const el = serverNow() - v.dealerAt;
+  const out = [cards[0], el >= 500 ? cards[1] : null];
+  for (let k = 2; k < cards.length; k++) { if (el >= 500 + 800 * (k - 1)) out.push(cards[k]); else break; }
+  return out;
+}
+function renderDealer(v) {
+  const vis = dealerVisible(v);
+  syncCards($('#dealerCards'), vis, (i) => (i < 2 ? (i * 3 + 2) * 150 : 0));
+  const hidden = vis.length >= 2 && !vis[1];
+  const t = $('#dealerTotal');
+  if (!vis.length) { t.className = 'total'; t.textContent = ''; return; }
+  const real = vis.filter(Boolean);
+  setTotal(t, vis, { hidden, bj: real.length === 2 && handTotal(real).total === 21 && !hidden });
+}
+
+function renderSeat(i, v, prev) {
+  const node = seatNodes[i], s = v.seats[i];
+  node.classList.toggle('empty', !s);
+  node.classList.toggle('me', v.you.seat === i);
+  if (!s) {
+    node.querySelector('.emptytxt').textContent = v.phase === 'lobby' || v.phase === 'over' ? `Seat ${i + 1} is open` : 'Empty seat';
+    node.classList.remove('active', 'multi');
+    node.querySelector('.hands').innerHTML = '';
+    return;
+  }
+  const av = node.querySelector('.avatar');
+  av.textContent = (s.name[0] || '?').toUpperCase();
+  node.querySelector('.name').textContent = s.name;
+  countTo(node.querySelector('.bal b'), s.balance);
+  node.querySelector('.badges').innerHTML =
+    (v.first === i && ['betting', 'playing', 'dealer', 'settled'].includes(v.phase) ? '<span class="badge first" title="Acts first this round">1ST</span>' : '') +
+    (!s.online ? '<span class="badge off">OFFLINE</span>' : '');
+  const active = v.phase === 'playing' && v.turn && v.turn.seat === i;
+  node.classList.toggle('active', !!active);
+
+  // hands
+  const hands = v.hands[i] || [];
+  node.classList.toggle('multi', hands.length > 1);
+  const box = node.querySelector('.hands');
+  while (box.children.length > hands.length) box.lastChild.remove();
+  const posInDeal = i === v.first ? 0 : 1;
+  hands.forEach((h, k) => {
+    let hn = box.children[k];
+    if (!hn) {
+      hn = document.createElement('div'); hn.className = 'hand';
+      hn.innerHTML = '<div class="cards"></div><div class="hmeta"><span class="total"></span><span class="hbet"><i class="coin"></i><b></b></span><span class="res"></span></div>';
+      box.appendChild(hn);
+    }
+    syncCards(hn.querySelector('.cards'), h.cards, (ci) => (ci < 2 ? (ci * 3 + posInDeal) * 150 : 0));
+    setTotal(hn.querySelector('.total'), h.cards, { bj: h.bj });
+    hn.querySelector('.hbet b').textContent = fmt(h.bet) + (h.doubled ? ' ×2' : '');
+    const r = v.results && v.results[i] && v.results[i][k];
+    const rs = hn.querySelector('.res');
+    rs.className = 'res' + (r ? ' ' + r.out : '');
+    rs.textContent = r ? (r.out === 'bust' ? '' : { win: 'WIN', lose: 'LOSE', push: 'PUSH', blackjack: 'BLACKJACK' }[r.out] + ' ') + (r.net ? `${r.net > 0 ? '+' : '−'}${fmt(Math.abs(r.net))}` : '') : '';
+    rs.textContent = rs.textContent.trim();
+    hn.className = 'hand' + (r ? ' ' + r.out : '') + (active && v.turn.hand === k ? ' cur' : '');
+  });
+
+  // bet row (betting phase only)
+  const br = node.querySelector('.betrow');
+  const sig = v.phase === 'betting' ? `${s.bet}` : '';
+  if (br._sig !== sig) {
+    br._sig = sig;
+    if (v.phase !== 'betting') br.innerHTML = '';
+    else if (s.bet == null) br.innerHTML = '<span class="txt">Thinking…</span>';
+    else { br.innerHTML = `<div class="chip big ${chipClass(s.bet)} drop"><span>${short(s.bet)}</span></div><span class="txt">Bet locked</span>`; if (!S.instant && (!prev || prev.seats[i]?.bet == null)) sfx.chip(); }
+  }
+
+  // floating net
+  if (v.phase === 'settled' && v.results && (!prev || prev.phase !== 'settled')) {
+    const net = (v.results[i] || []).reduce((a, r) => a + r.net, 0);
+    const f = node.querySelector('.float');
+    f.className = 'float'; void f.offsetWidth;
+    f.textContent = net === 0 ? 'PUSH' : (net > 0 ? '+' : '−') + fmt(Math.abs(net));
+    f.classList.add(net > 0 ? 'up' : net < 0 ? 'down' : 'up', 'go');
+  }
+}
+
+function renderBanner(v) {
+  const names = [0, 1].map((i) => (v.seats[i] ? v.seats[i].name : '—'));
+  let t = '', sub = '', cls = '';
+  if (v.phase === 'betting') t = 'PLACE YOUR BETS';
+  else if (v.phase === 'playing' && v.turn) {
+    const mine = v.turn.seat === v.you.seat;
+    t = mine ? 'YOUR MOVE' : `${names[v.turn.seat].toUpperCase()}'S MOVE`;
+    if (v.hands[v.turn.seat].length > 1) sub = `Hand ${v.turn.hand + 1} of ${v.hands[v.turn.seat].length}`;
+  } else if (v.phase === 'playing') t = 'DEALER CHECKS…';
+  else if (v.phase === 'dealer') t = 'DEALER PLAYS';
+  else if (v.phase === 'settled' && v.results) {
+    const nets = [0, 1].map((i) => (v.results[i] || []).reduce((a, r) => a + r.net, 0));
+    const f = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+    if (v.you.seat >= 0) { const n = nets[v.you.seat]; t = n > 0 ? `YOU WIN ${f(n)}` : n < 0 ? `YOU LOSE ${f(n)}` : 'PUSH'; cls = n > 0 ? 'pos' : n < 0 ? 'neg' : ''; }
+    else t = nets.map((n, i) => `${names[i]} ${f(n)}`).join('  ·  ');
+    if (v.over) sub = 'Final round';
+  }
+  const b = $('#banner'), key = t + '|' + sub;
+  if (b._k !== key) {
+    b._k = key; b.className = 'banner ' + cls; b.textContent = t;
+    if (sub) { const s = document.createElement('small'); s.textContent = sub; b.appendChild(s); }
+    void b.offsetWidth; b.classList.add('pop');
+  }
+}
+
+/* =====================================================================
+   dock (bets / actions)
+   ===================================================================== */
+const dock = {
+  bet: $('#dockBet'), play: $('#dockPlay'), wait: $('#dockWait'), next: $('#dockNext'), spec: $('#dockSpec'),
+};
+const betCap = (v) => { const me = v.seats[v.you.seat]; return me ? Math.min(v.settings.maxBet, me.balance) : 0; };
+
+function renderChips(v) {
+  const cap = betCap(v), min = v.settings.minBet;
+  const sig = `${cap}|${min}`;
+  if (S.sig.chips === sig) { updateChipState(v); return; }
+  S.sig.chips = sig;
+  const list = DENOMS.filter((d) => d <= cap && d >= min / 2).slice(0, 7);
+  const row = $('#chipRow'); row.innerHTML = '';
+  for (const d of list) {
+    const b = document.createElement('button');
+    b.className = `chip ${chipClass(d)}`; b.dataset.v = d; b.innerHTML = `<span>${short(d)}</span>`;
+    b.addEventListener('click', () => { S.pending = Math.min(cap, S.pending + d); sfx.chip(); updateChipState(S.view); });
+    row.appendChild(b);
+  }
+  updateChipState(v);
+}
+function updateChipState(v) {
+  const cap = betCap(v), min = v.settings.minBet;
+  S.pending = Math.max(0, Math.min(cap, S.pending));
+  $('#betAmt').textContent = fmt(S.pending);
+  $$('#chipRow .chip').forEach((c) => (c.disabled = S.pending + +c.dataset.v > cap));
+  $('#placeBet').disabled = S.pending < min || S.pending > cap;
+  $('#bLast').disabled = !(v.seats[v.you.seat] && v.seats[v.you.seat].lastBet);
+}
+function placeBet() {
+  const v = S.view;
+  if (!v || $('#placeBet').disabled || !dock.bet.classList.contains('on')) return;
+  act('bet', { amount: S.pending });
+}
+$('#placeBet').addEventListener('click', placeBet);
+$('#bClear').addEventListener('click', () => { S.pending = 0; updateChipState(S.view); });
+$('#bHalf').addEventListener('click', () => { S.pending = Math.max(S.view.settings.minBet, Math.floor(S.pending / 2)); updateChipState(S.view); });
+$('#bDouble').addEventListener('click', () => { S.pending = S.pending * 2 || S.view.settings.minBet; updateChipState(S.view); });
+$('#bMax').addEventListener('click', () => { S.pending = betCap(S.view); sfx.chip(); updateChipState(S.view); });
+$('#bLast').addEventListener('click', () => { const me = S.view.seats[S.view.you.seat]; S.pending = me.lastBet; updateChipState(S.view); });
+
+const playBtn = { hit: $('#aHit'), stand_hand: $('#aStand'), double: $('#aDouble'), split: $('#aSplit') };
+let acting = false;
+async function doAction(type) {
+  if (acting) return;
+  const v = S.view;
+  if (!v || !v.legal) return;
+  const key = type === 'stand_hand' ? 'stand' : type;
+  if (!v.legal[key]) return;
+  acting = true;
+  Object.values(playBtn).forEach((b) => (b.disabled = true));
+  try { await act(type); } finally { acting = false; if (S.view) renderDock(S.view); }
+}
+playBtn.hit.addEventListener('click', () => doAction('hit'));
+playBtn.stand_hand.addEventListener('click', () => doAction('stand_hand'));
+playBtn.double.addEventListener('click', () => doAction('double'));
+playBtn.split.addEventListener('click', () => doAction('split'));
+$('#nextBtn').addEventListener('click', () => act('next'));
+
+function setDock(which, text) {
+  for (const k of Object.keys(dock)) dock[k].classList.toggle('on', k === which);
+  if (which === 'wait') $('#waitTxt').textContent = text || '';
+  if (which === 'spec') $('#specTxt').textContent = text || '';
+}
+
+function renderDock(v) {
+  const me = v.you.seat, seated = me >= 0, opp = seated ? v.seats[1 - me] : null;
+  const live = ['betting', 'playing', 'dealer', 'settled'].includes(v.phase);
+  $('#dock').classList.toggle('hidden', v.phase === 'lobby' || v.phase === 'over');
+  $('#forfeitBtn').classList.toggle('hidden', !(seated && ['betting', 'playing', 'dealer'].includes(v.phase)));
+  if (!live) return;
+
+  if (v.phase === 'betting') {
+    if (seated && v.seats[me].bet == null) {
+      if (S.betRound !== v.round) {
+        S.betRound = v.round; S.sig.chips = '';
+        const cap = betCap(v);
+        S.pending = Math.min(cap, Math.max(v.settings.minBet, v.seats[me].lastBet || v.settings.minBet));
+      }
+      renderChips(v);
+      setDock('bet');
+    } else if (seated) setDock('wait', `Bet locked. Waiting for ${opp ? opp.name : 'opponent'}…`);
+    else setDock('spec', 'Betting is open. You are spectating.');
+  } else if (v.phase === 'playing') {
+    if (v.legal) {
+      setDock('play');
+      playBtn.hit.disabled = acting; playBtn.stand_hand.disabled = acting;
+      playBtn.double.disabled = acting || !v.legal.double; playBtn.split.disabled = acting || !v.legal.split;
+      playBtn.double.classList.toggle('hidden', false);
+    } else if (v.turn) {
+      const nm = v.seats[v.turn.seat] ? v.seats[v.turn.seat].name : '…';
+      if (seated) setDock('wait', `${nm} is playing…`); else setDock('spec', `${nm} is playing. You are spectating.`);
+    } else setDock(seated ? 'wait' : 'spec', 'Dealer is checking for blackjack…');
+  } else if (v.phase === 'dealer') setDock(seated ? 'wait' : 'spec', 'Dealer plays…');
+  else if (v.phase === 'settled') {
+    if (seated) {
+      setDock('next');
+      const voted = v.seats[me].voted;
+      $('#nextBtn').disabled = voted || !!v.over;
+      $('#nextBtn').innerHTML = voted ? 'Waiting for opponent…' : 'Next round <kbd>↵</kbd>';
+      $('#nextBtn').classList.toggle('hidden', !!v.over);
+    } else setDock('spec', v.over ? 'Match is ending…' : 'Next round starting soon…');
+  }
+}
+
+/* =====================================================================
+   lobby + settings + over
+   ===================================================================== */
+const setIds = { startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', betTime: '#sBetTime', actionTime: '#sActTime' };
+function collectSettings() {
+  return {
+    startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value,
+    decks: +$('#sDecks').value, payout: +$('#sPayout').value, h17: $('#sH17').value === '1',
+    maxRounds: +$('#sRounds').value, betTime: +$('#sBetTime').value, actionTime: +$('#sActTime').value,
+  };
+}
+$$('#settings input, #settings select').forEach((el) => el.addEventListener('change', () => act('settings', { settings: collectSettings() })));
+$$('#balPresets button').forEach((b) => b.addEventListener('click', () => { $('#sBalance').value = b.dataset.v; act('settings', { settings: collectSettings() }); }));
+
+function renderLobby(v) {
+  const on = v.phase === 'lobby';
+  $('#lobby').classList.toggle('on', on);
+  if (!on) return;
+  const seated = v.you.seat >= 0;
+  // settings values
+  const st = v.settings, sig = JSON.stringify(st);
+  if (S.sig.settings !== sig) {
+    S.sig.settings = sig;
+    const set = (sel, val) => { const el = $(sel); if (document.activeElement !== el) el.value = String(val); };
+    for (const [k, sel] of Object.entries(setIds)) set(sel, st[k]);
+    set('#sH17', st.h17 ? '1' : '0');
+  }
+  $$('#settings input, #settings select, #balPresets button').forEach((el) => (el.disabled = !seated));
+  // seats
+  const lsig = JSON.stringify([v.seats.map((s) => s && [s.id, s.ready, s.online]), v.you.seat]);
+  if (S.sig.lobby !== lsig) {
+    S.sig.lobby = lsig;
+    $('#lobbySeats').innerHTML = [0, 1].map((i) => {
+      const s = v.seats[i];
+      if (!s) return `<div class="lseat" data-s="${i}"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1} is open</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${seated ? 'Move here' : 'Take seat ' + (i + 1)}</button></div>`;
+      const mine = v.you.seat === i;
+      return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
+        <div class="st">${!s.online ? 'Offline' : s.ready ? 'Ready ✓' : 'Not ready'}</div>
+        ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div>` : ''}</div>`;
+    }).join('');
+  }
+  const both = v.seats[0] && v.seats[1];
+  $('#lobbyFoot').textContent = !both ? 'Waiting for two players to take a seat. Everyone else spectates.' :
+    seated ? (v.seats[0].ready && v.seats[1].ready ? 'Starting…' : 'Both players hit Ready to start. Changing a setting un-readies everyone.') : 'Table is full. You are watching.';
+}
+$('#lobbySeats').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'sit') act('sit', { seat: +b.dataset.seat });
+  else if (b.dataset.act === 'ready') act('ready', { value: b.dataset.val === '1' });
+  else if (b.dataset.act === 'stand') act('stand');
+});
+
+function renderOver(v) {
+  const on = v.phase === 'over';
+  $('#over').classList.toggle('on', on);
+  if (!on) { S.sig.over = ''; return; }
+  const o = v.over || { winner: -1, reason: '' };
+  const sig = JSON.stringify([o, v.seats.map((s) => s && [s.id, s.balance]), v.you.seat]);
+  if (S.sig.over === sig) return;
+  S.sig.over = sig;
+  const w = o.winner >= 0 ? v.seats[o.winner] : null;
+  const winName = w ? w.name : (o.winner >= 0 ? 'Opponent' : '');
+  const reason = { broke: 'Opponent is out of chips', rounds: 'Round limit reached. Highest stack wins', forfeit: 'Opponent forfeited', disconnect: 'Opponent disconnected' }[o.reason] || '';
+  const start = v.settings.startingBalance;
+  const card = (i) => {
+    const s = v.seats[i]; if (!s) return '';
+    const net = s.balance - start;
+    return `<div class="d${o.winner === i ? ' w' : ''}">${avatar(s.name, i, 'sm')} <b style="display:inline">${esc(s.name)}</b><b>${fmt(s.balance)}</b><span class="${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span><div style="color:var(--dim);font-size:12px;margin-top:4px">${v.stats.w[i]}W · ${v.stats.l[i]}L · ${v.stats.p[i]}P · ${v.stats.bj[i]} BJ</div></div>`;
+  };
+  const seated = v.you.seat >= 0;
+  $('#overCard').innerHTML = `<div class="trophy">${o.winner >= 0 ? '🏆' : '🤝'}</div><h2>${o.winner >= 0 ? esc(winName) + ' takes the pot' : 'Dead heat'}</h2><div style="color:var(--dim)">${reason} · ${v.round} round${v.round === 1 ? '' : 's'}</div>
+    <div class="over-stats">${card(0)}${card(1)}</div>
+    ${seated ? '<button class="btn primary big" id="backLobby">Back to lobby (rematch)</button>' : [0, 1].some((i) => !v.seats[i]) ? '<div class="row" style="display:flex;gap:8px">' + [0, 1].filter((i) => !v.seats[i]).map((i) => `<button class="btn primary" data-sit="${i}">Take seat ${i + 1}</button>`).join('') + '</div>' : '<div style="color:var(--dim)">Waiting for the players…</div>'}`;
+  const bl = $('#backLobby'); if (bl) bl.addEventListener('click', () => act('lobby'));
+  $$('#overCard [data-sit]').forEach((b) => b.addEventListener('click', () => act('sit', { seat: +b.dataset.sit })));
+}
+
+/* =====================================================================
+   side panel, rounds, chat
+   ===================================================================== */
+function renderSide(v) {
+  const sig = JSON.stringify([v.seats.map((s) => s && [s.id, s.online, s.balance]), v.members.map((m) => m.id), v.you.seat, v.phase, v.settings, v.stats, v.series.length]);
+  if (S.sig.side === sig) return;
+  S.sig.side = sig;
+  $('#sideSeats').innerHTML = [0, 1].map((i) => {
+    const s = v.seats[i];
+    if (!s) return `<div class="sseat empty"><span class="avatar" style="--c:#2a3558;opacity:.5">?</span><div><div class="n">Seat ${i + 1}</div><div class="s">Open</div></div>${['lobby', 'over'].includes(v.phase) ? `<button class="btn mini primary" data-sit="${i}">Sit</button>` : ''}</div>`;
+    return `<div class="sseat">${avatar(s.name, i)}<div><div class="n">${esc(s.name)}${v.you.seat === i ? ' <span style="color:var(--dim);font-weight:500">(you)</span>' : ''}</div><div class="s">${s.online ? 'Online' : 'Offline'} · ${fmt(s.balance)}</div></div></div>`;
+  }).join('');
+  $$('#sideSeats [data-sit]').forEach((b) => b.addEventListener('click', () => act('sit', { seat: +b.dataset.sit })));
+  const specs = v.members.filter((m) => m.seat < 0);
+  $('#specCount').textContent = specs.length;
+  $('#specList').innerHTML = specs.length ? specs.map((m) => `<span>${esc(m.name)}</span>`).join('') : '<span style="border-style:dashed">nobody yet</span>';
+  $('#onlineCount').textContent = `${v.members.length} online`;
+  const st = v.settings;
+  $('#rules').innerHTML = [`${st.decks} deck${st.decks > 1 ? 's' : ''}`, `BJ ${st.payout === 1.5 ? '3:2' : st.payout === 1.2 ? '6:5' : '1:1'}`, st.h17 ? 'H17' : 'S17', `Bet ${fmt(st.minBet)}–${fmt(st.maxBet)}`, st.maxRounds ? `${st.maxRounds} rounds` : 'Until broke'].map((t) => `<span>${t}</span>`).join('');
+  $('#ftPay').textContent = `BLACKJACK PAYS ${st.payout === 1.5 ? '3 TO 2' : st.payout === 1.2 ? '6 TO 5' : '1 TO 1'}`;
+  $('#ftRule').textContent = st.h17 ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
+  $('#duel').innerHTML = [0, 1].map((i) => { const s = v.seats[i]; return `<div class="d"><small>${s ? esc(s.name) : 'Seat ' + (i + 1)}</small><b style="color:${seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ</small></div>`; }).join('');
+  drawSpark(v);
+}
+function drawSpark(v) {
+  const svg = $('#spark'), ser = v.series;
+  if (ser.length < 2) { svg.innerHTML = '<text x="120" y="40" fill="#5b6c97" font-size="11" text-anchor="middle">Balance chart appears after round 1</text>'; return; }
+  const all = ser.flat(), lo = Math.min(...all), hi = Math.max(...all), span = Math.max(1, hi - lo);
+  const pt = (i, val) => `${(i / (ser.length - 1)) * 228 + 6},${62 - ((val - lo) / span) * 54}`;
+  svg.innerHTML = [0, 1].map((s) => `<polyline fill="none" stroke="${s ? '#e879f9' : '#38bdf8'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${ser.map((r, i) => pt(i, r[s])).join(' ')}"/>`).join('');
+}
+
+const mc = (c) => `<span class="mc${isRed(c) ? ' r' : ''}">${c.slice(0, -1)}${SYM[c.slice(-1)]}</span>`;
+function renderRounds(v) {
+  const sig = v.history.length ? `${v.history.length}:${v.history[v.history.length - 1].r}:${v.history[0].r}` : '0';
+  if (S.sig.rounds === sig) return;
+  S.sig.rounds = sig;
+  $('#rempty').classList.toggle('hidden', v.history.length > 0);
+  const label = { win: 'WIN', lose: 'LOSE', push: 'PUSH', bust: 'BUST', blackjack: 'BJ' };
+  $('#rbody').innerHTML = [...v.history].reverse().map((h) =>
+    h.seats.map((s, i) => {
+      const bet = s.hands.reduce((a, x) => a + x.bet, 0);
+      return `<div class="rrow"><span>${i === 0 ? '#' + h.r : ''}</span><span class="pl">${avatar(s.name, i, 'sm')}<span>${esc(s.name)}</span></span>
+      <span>${s.hands.map((x) => x.cards.map(mc).join('') + `<span class="o ${x.net > 0 ? 'pos' : x.net < 0 ? 'neg' : ''}">${label[x.out]}</span>`).join('<span class="hsep">|</span>')}</span>
+      <span>${i === 0 ? h.dealer.cards.map(mc).join('') + `<span class="o">${h.dealer.bust ? 'BUST' : h.dealer.total}</span>` : ''}</span>
+      <span>${fmt(bet)}</span><span class="${s.net > 0 ? 'pos' : s.net < 0 ? 'neg' : ''}"><b>${s.net > 0 ? '+' : s.net < 0 ? '−' : ''}${fmt(Math.abs(s.net))}</b></span></div>`;
+    }).join('')
+  ).join('');
+}
+
+function renderChat(v) {
+  const box = $('#msgs');
+  const last = S.chatLast || 0;
+  const fresh = v.chat.filter((m) => m.id > last);
+  if (!fresh.length) return;
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  for (const m of fresh) {
+    const d = document.createElement('div');
+    if (m.s) { d.className = 'msg sys'; d.textContent = m.x; }
+    else {
+      d.className = 'msg' + (m.u === v.you.id ? ' mine' : '');
+      const b = document.createElement('b'); b.textContent = m.n; b.style.color = m.u === v.you.id ? '' : `hsl(${hue(m.n)} 85% 72%)`;
+      d.append(b, document.createTextNode(m.x));
+    }
+    box.appendChild(d);
+  }
+  S.chatLast = v.chat[v.chat.length - 1].id;
+  while (box.children.length > 120) box.firstChild.remove();
+  if (near || last === 0) box.scrollTop = box.scrollHeight;
+}
+$('#chatForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const i = $('#chatInput'), t = i.value.trim();
+  if (!t) return;
+  i.value = '';
+  act('chat', { text: t });
+});
+$$('.emotes button').forEach((b) => b.addEventListener('click', () => act('chat', { text: b.textContent })));
+
+/* =====================================================================
+   main render + sound/transition triggers
+   ===================================================================== */
+function render(v, prev) {
+  $('#roomName').textContent = v.room;
+  // transitions
+  if (prev && !S.instant) {
+    if (v.legal && !prev.legal) { sfx.turn(); if (document.hidden) document.title = '🔔 Your move · Degen 21'; }
+    if (v.phase === 'settled' && prev.phase !== 'settled' && v.you.seat >= 0 && v.results) {
+      const n = (v.results[v.you.seat] || []).reduce((a, r) => a + r.net, 0);
+      setTimeout(() => (n > 0 ? sfx.win() : n < 0 ? sfx.lose() : sfx.push()), 120);
+    }
+    if (v.phase === 'betting' && prev.phase !== 'betting') $('#felt').classList.remove('flash');
+  }
+  renderDealer(v);
+  renderSeat(0, v, prev); renderSeat(1, v, prev);
+  renderBanner(v);
+  renderDock(v);
+  $('#tablebox').classList.toggle('setup', v.phase === 'lobby' || v.phase === 'over');
+  renderLobby(v); renderOver(v);
+  renderSide(v); renderRounds(v); renderChat(v);
+  $('#shoeCount').textContent = v.phase === 'lobby' ? '' : `SHOE ${v.shoeLeft}`;
+  tickUI();
+}
+
+/* 100ms ticker: timers + dealer timeline */
+function tickUI() {
+  const v = S.view; if (!v) return;
+  if (v.phase === 'dealer') renderDealer(v);
+  const now = serverNow();
+  const remain = v.timerAt ? Math.max(0, v.timerAt - now) : 0;
+  const frac = v.timerDur ? Math.min(1, remain / v.timerDur) : 0;
+  const low = remain > 0 && remain < 6000;
+  seatNodes.forEach((n, i) => {
+    const on = v.timerAt && ((v.timerKind === 'action' && v.turn && v.turn.seat === i) || (v.timerKind === 'bet' && v.seats[i] && v.seats[i].bet == null));
+    const t = n.querySelector('.timer');
+    t.classList.toggle('on', !!on); t.classList.toggle('low', !!on && low);
+    if (on) t.firstElementChild.style.transform = `scaleX(${frac})`;
+  });
+  const showBar = v.timerAt && (v.timerKind === 'bet' || v.timerKind === 'action');
+  $('#waitBar').parentElement.style.visibility = showBar ? 'visible' : 'hidden';
+  $('#waitBar').style.transform = `scaleX(${frac})`;
+  if (v.phase === 'settled' && v.timerKind === 'next' && v.you.seat >= 0)
+    $('#nextTxt').textContent = v.over ? 'Final round' : `Next round in ${Math.ceil(remain / 1000)}s`;
+}
+setInterval(tickUI, 100);
+
+/* keep presence alive */
+setInterval(() => { if (S.token && S.view) post('/api/act', { room: S.room, type: 'ping' }).catch((e) => { if (e.status === 401) logout('Session expired. Sign in again.'); }); }, 10000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  document.title = 'Degen 21 · 1v1 Blackjack';
+  if (S.token && S.view) { post('/api/act', { room: S.room, type: 'ping' }).catch(() => {}); if (S.conn !== 'live' && S.ac) S.ac.abort(); }
+});
+
+/* hotkeys */
+addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+  if (e.key === '/' && !typing && S.view) { e.preventDefault(); if (matchMedia('(max-width:1180px)').matches) document.body.dataset.tab = 'chat'; $('#chatInput').focus(); return; }
+  if (typing || !S.view || appEl.classList.contains('hidden')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'h') doAction('hit');
+  else if (k === 's') doAction('stand_hand');
+  else if (k === 'd') doAction('double');
+  else if (k === 'p') doAction('split');
+  else if (e.key === 'Enter') {
+    if (dock.bet.classList.contains('on')) placeBet();
+    else if (dock.next.classList.contains('on') && !$('#nextBtn').disabled) act('next');
+  }
+});
+
+/* boot */
+(async () => {
+  const q = new URLSearchParams(location.search).get('room');
+  S.room = (q || localStorage.getItem('bj.room') || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
+  if (S.token) { try { await enter(); return; } catch { /* fall through to login */ } }
+  showLogin('');
+})();
+})();

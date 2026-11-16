@@ -1,0 +1,13 @@
+{
+  "name": "degen-21",
+  "version": "1.0.0",
+  "description": "Two-player (1v1) online blackjack with spectators. Master-password gate, no accounts. Runs on Docker/Coolify or Vercel.",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/main.js",
+    "dev": "node --watch server/main.js",
+    "test": "node --test test/engine.test.js && node test/e2e.js && E2E_REDIS=1 node test/e2e.js"
+  }
+}

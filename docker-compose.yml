@@ -1,0 +1,10 @@
+services:
+  degen21:
+    build: .
+    restart: unless-stopped
+    environment:
+      SITE_PASSWORD: ${SITE_PASSWORD:?Set SITE_PASSWORD (the master password)}
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      PORT: 3000
+    ports:
+      - "3000:3000"

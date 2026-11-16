@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Degen 21 · 1v1 Blackjack</title>
+<meta name="theme-color" content="#070b14">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body data-tab="chat">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#e879f9"/></linearGradient></defs></svg>
+
+<!-- ============ LOGIN ============ -->
+<div id="login" class="login">
+  <div class="login-bg" aria-hidden="true"><i class="fc c1">A♠</i><i class="fc c2">K♥</i><i class="fc c3">10♦</i><i class="fc c4">J♣</i></div>
+  <form id="loginForm" class="login-card" autocomplete="off">
+    <div class="logo"><svg viewBox="0 0 32 32" width="34" height="34"><rect x="3" y="2" width="26" height="28" rx="6" fill="url(#lg)"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>21</b></span></div>
+    <p class="tag">1v1 blackjack. Two sit, everyone else watches.</p>
+    <label>Name<input id="inName" maxlength="16" placeholder="Pick a handle" required></label>
+    <label>Master password<input id="inPass" type="password" placeholder="Table password" required></label>
+    <label><span>Room <em class="opt">optional</em></span><input id="inRoom" maxlength="20" placeholder="main"></label>
+    <button class="btn primary big" id="loginBtn" type="submit">Enter the casino</button>
+    <div class="err" id="loginErr" role="alert"></div>
+    <p class="fine">18+ in spirit only. Play chips, no real money.</p>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="app hidden">
+  <header class="topbar">
+    <div class="logo sm"><svg viewBox="0 0 32 32" width="26" height="26"><rect x="3" y="2" width="26" height="28" rx="6" fill="url(#lg)"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>21</b></span></div>
+    <button class="pill" id="roomPill" title="Copy invite link"><span class="dot" id="connDot"></span><span id="roomName">main</span><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg></button>
+    <div class="grow"></div>
+    <span class="online" id="onlineCount"></span>
+    <button class="icon-btn" id="soundBtn" title="Sound">🔊</button>
+    <div class="me"><span class="avatar sm" id="meAvatar"></span><span id="meName"></span></div>
+    <button class="btn ghost sm" id="logoutBtn">Leave</button>
+  </header>
+
+  <aside class="side panel" data-tabpanel="info">
+    <section>
+      <h3>Seats</h3>
+      <div id="sideSeats" class="sideseats"></div>
+    </section>
+    <section>
+      <h3>Spectators <span class="count" id="specCount"></span></h3>
+      <div id="specList" class="speclist"></div>
+    </section>
+    <section>
+      <h3>Match</h3>
+      <div id="rules" class="chips-row"></div>
+      <div class="duel" id="duel"></div>
+      <svg id="spark" class="spark" viewBox="0 0 240 70" preserveAspectRatio="none"></svg>
+    </section>
+    <section class="hotkeys">
+      <h3>Hotkeys</h3>
+      <div><kbd>H</kbd> hit <kbd>S</kbd> stand <kbd>D</kbd> double <kbd>P</kbd> split</div>
+      <div><kbd>Enter</kbd> place bet / next round <kbd>/</kbd> chat</div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <section class="tablebox" id="tablebox">
+      <div class="felt" id="felt">
+        <button class="btn ghost sm forfeit" id="forfeitBtn">Forfeit</button>
+        <div class="shoe" id="shoe"><div class="shoe-cards"><i></i><i></i><i></i></div><span id="shoeCount"></span></div>
+        <div class="dealer-zone">
+          <div class="dealer-label"><span>DEALER</span><span class="total" id="dealerTotal"></span></div>
+          <div class="cards" id="dealerCards"></div>
+        </div>
+        <div class="felt-text"><div id="ftPay">BLACKJACK PAYS 3 TO 2</div><div id="ftRule">DEALER STANDS ON ALL 17s</div></div>
+        <div class="banner" id="banner"></div>
+        <div class="seats" id="seats"></div>
+
+        <!-- lobby overlay -->
+        <div class="overlay" id="lobby">
+          <div class="lobby-card">
+            <h2>Table setup</h2>
+            <div class="lobby-seats" id="lobbySeats"></div>
+            <div class="settings" id="settings">
+              <div class="field wide"><label>Starting balance</label>
+                <div class="inline"><input id="sBalance" type="number" min="50" step="50"><div class="presets" id="balPresets"><button type="button" data-v="500">500</button><button type="button" data-v="1000">1K</button><button type="button" data-v="5000">5K</button><button type="button" data-v="10000">10K</button><button type="button" data-v="100000">100K</button></div></div></div>
+              <div class="field"><label>Min bet</label><input id="sMin" type="number" min="1"></div>
+              <div class="field"><label>Max bet</label><input id="sMax" type="number" min="1"></div>
+              <div class="field"><label>Decks</label><select id="sDecks"><option>1</option><option>2</option><option>4</option><option>6</option><option>8</option></select></div>
+              <div class="field"><label>Blackjack pays</label><select id="sPayout"><option value="1.5">3 : 2</option><option value="1.2">6 : 5</option><option value="1">1 : 1</option></select></div>
+              <div class="field"><label>Dealer soft 17</label><select id="sH17"><option value="0">Stands</option><option value="1">Hits</option></select></div>
+              <div class="field"><label>Rounds</label><select id="sRounds"><option value="0">Until broke</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></div>
+              <div class="field"><label>Bet timer</label><select id="sBetTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
+              <div class="field"><label>Action timer</label><select id="sActTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
+            </div>
+            <div class="lobby-foot" id="lobbyFoot"></div>
+          </div>
+        </div>
+
+        <!-- match over overlay -->
+        <div class="overlay" id="over"><div class="over-card" id="overCard"></div></div>
+      </div>
+
+      <!-- action dock -->
+      <div class="dock" id="dock">
+        <div class="dock-sec" id="dockBet">
+          <div class="bet-main">
+            <div class="chips" id="chipRow"></div>
+            <div class="bet-ctl">
+              <div class="bet-amt"><span>Your bet</span><b id="betAmt">0</b></div>
+              <div class="mini-row">
+                <button class="btn mini" id="bClear">Clear</button><button class="btn mini" id="bHalf">½</button><button class="btn mini" id="bDouble">2×</button><button class="btn mini" id="bMax">Max</button><button class="btn mini" id="bLast">Last</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn primary big" id="placeBet">Place bet <kbd>↵</kbd></button>
+        </div>
+        <div class="dock-sec" id="dockPlay">
+          <button class="btn act hit" id="aHit">Hit <kbd>H</kbd></button>
+          <button class="btn act stand" id="aStand">Stand <kbd>S</kbd></button>
+          <button class="btn act dbl" id="aDouble">Double <kbd>D</kbd></button>
+          <button class="btn act split" id="aSplit">Split <kbd>P</kbd></button>
+        </div>
+        <div class="dock-sec" id="dockWait"><span class="wait-txt" id="waitTxt"></span><div class="timer-big"><i id="waitBar"></i></div></div>
+        <div class="dock-sec" id="dockNext"><span class="wait-txt" id="nextTxt"></span><button class="btn primary" id="nextBtn">Next round <kbd>↵</kbd></button></div>
+        <div class="dock-sec" id="dockSpec"><span class="wait-txt" id="specTxt"></span></div>
+      </div>
+    </section>
+
+    <nav class="mtabs">
+      <button data-t="chat" class="on">Chat</button><button data-t="rounds">Rounds</button><button data-t="info">Table</button>
+    </nav>
+
+    <section class="rounds panel" data-tabpanel="rounds">
+      <div class="panel-h"><h3>Recent rounds</h3></div>
+      <div class="rtable">
+        <div class="rrow rhead"><span>Rnd</span><span>Player</span><span>Hand</span><span>Dealer</span><span>Bet</span><span>Net</span></div>
+        <div id="rbody"></div>
+        <div class="empty" id="rempty">No rounds yet. Place a bet.</div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="chat panel" data-tabpanel="chat">
+    <div class="panel-h"><h3>Table chat</h3></div>
+    <div class="msgs" id="msgs"></div>
+    <div class="emotes"><button>🔥</button><button>💀</button><button>🤡</button><button>🍀</button><button>😭</button><button>🫡</button></div>
+    <form class="chat-in" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="240" placeholder="Talk your talk…"><button class="btn primary mini" type="submit">Send</button></form>
+  </aside>
+</div>
+
+<div id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>
