@@ -320,7 +320,7 @@ button.chip:disabled{opacity:.3;filter:grayscale(.6);cursor:not-allowed}
   .shoe{display:none}
   .lseat{min-height:96px;padding:8px}
 }
-@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}}
 
 .seat.empty>*:not(.emptytxt){display:none}
 .emptytxt{display:none;font-weight:700;letter-spacing:.06em;font-size:12px}
@@ -429,7 +429,7 @@ h3 .ic{font-size:14px;color:var(--dim)}
 .toast .ic{font-size:20px;color:var(--cyan)}
 .toast.bad .ic{color:#fca5a5}
 .over-card .trophy{display:grid;place-items:center;font-size:64px;color:#fbbf24;animation:trophy 2.4s ease-in-out infinite}
-@keyframes trophy{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-6px) rotate(-4deg)}}
+@keyframes trophy{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(-3deg)}}
 .chat-rail .ico{display:inline-flex}
 .seat .avatar,.lseat .avatar{font-size:14px}
 
@@ -458,7 +458,7 @@ h3 .ic{font-size:14px;color:var(--dim)}
 .ev-round .rr.up .rv{color:#86efac}.ev-round .rr.dn .rv{color:#fca5a5}.ev-round .rr.eq .rv{color:var(--dim)}
 .ev-round .rb{grid-column:2/4;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mute);margin-top:-2px;font-variant-numeric:tabular-nums}
 .ev-win{display:flex;align-items:center;gap:12px;background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.35)}
-.ev-win .tro{font-size:30px;color:#fbbf24;display:inline-flex;animation:trophy 2.4s ease-in-out infinite}
+.ev-win .tro{font-size:30px;color:#fbbf24;display:inline-flex;animation:trophy 3.6s ease-in-out infinite}
 .ev-win .wt{font-size:14px;color:var(--txt);font-weight:600}
 .ev-card .coin{width:11px;height:11px}
 .banner{flex-wrap:wrap}.banner small{flex-basis:100%;text-align:center}
