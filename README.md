@@ -29,6 +29,10 @@ Pick a mode in the lobby once seated (any seated player can change it; changing 
 
 **Blitz** is a toggle that works with every mode: 8s to bet, 8s to act, short intermissions.
 
+## Rooms
+
+A room is the `?room=` name in the URL. At most **10 rooms** exist at once (`MAX_ROOMS`); a room with no activity for **60 minutes** is deleted (`ROOM_TTL_MINUTES`). Trying to open an 11th room returns a "rooms full" message until one expires. Existing rooms are never affected by the cap.
+
 ## Run locally
 
 ```bash

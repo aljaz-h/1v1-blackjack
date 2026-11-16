@@ -121,5 +121,11 @@ class Client {
   assert.strictEqual(rk[0].place, 1);
   assert.deepStrictEqual(s.view.over, a.view.over);
   console.log(`e2e tournament ok: ${a.view.round} rounds in ${((Date.now() - t1) / 1000).toFixed(1)}s, ranking`, rk.map((r) => `${r.place}.${r.name}:${r.balance}`).join(' '));
+  /* ---- room cap: 'e2e' already exists, so 9 more fit and the 10th new one is refused ---- */
+  const cap = [];
+  for (let i = 0; i < 10; i++) cap.push((await post('/api/act', { room: 'cap' + i, type: 'join' }, a.token)).status);
+  assert.deepStrictEqual(cap, [200, 200, 200, 200, 200, 200, 200, 200, 200, 409], JSON.stringify(cap));
+  assert.strictEqual((await post('/api/act', { room: 'e2e', type: 'chat', text: 'still alive' }, a.token)).status, 200, 'existing room unaffected');
+  console.log('e2e room cap ok');
   srv.kill(); fake && fake.close(); process.exit(0);
 })().catch((e) => { console.error('E2E FAIL', e); srv.kill(); fake && fake.close(); process.exit(1); });

@@ -5,6 +5,7 @@ const { CAS_LUA } = require('../lib/store');
 
 function start(port) {
   const hashes = new Map();
+  const zset = new Map();
   let calls = 0;
   const srv = http.createServer((req, res) => {
     let body = '';
@@ -20,9 +21,12 @@ function start(port) {
       }
       if (cmd === 'EVAL') {
         if (a[0] !== CAS_LUA) return out({ error: 'unexpected script' });
-        const [, , key, expect, next, v, t, d] = a;
+        const [, , key, , expect, next, v, t, d, now, cutoff, room, max] = a;
         const h = hashes.get(key) || new Map();
         if ((h.get('sv') || '0') !== expect) return out({ result: 0 });
+        for (const [r, sc] of zset) if (Number(sc) <= Number(cutoff)) zset.delete(r);
+        if (expect === '0' && !zset.has(room) && zset.size >= Number(max)) return out({ result: -1 });
+        zset.set(room, now);
         h.set('sv', next); h.set('v', v); h.set('t', t); h.set('d', d);
         hashes.set(key, h);
         return out({ result: 1 });
