@@ -122,6 +122,38 @@ function countTo(el, to) {
     if (k < 1) el._r = requestAnimationFrame(step);
   };
   el._r = requestAnimationFrame(step);
+  const bal = el.closest('.bal');
+  if (bal) { bal.classList.remove('gain', 'loss'); void bal.offsetWidth; bal.classList.add(to > from ? 'gain' : 'loss'); clearTimeout(bal._t); bal._t = setTimeout(() => bal.classList.remove('gain', 'loss'), 1100); }
+}
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
+const centerOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+// offset of `el` from the card shoe (falls back to the top of the table when the shoe is hidden on small screens)
+function shoeOffset(el) {
+  const shoe = $('#shoe'), r = el.getBoundingClientRect();
+  let sx, sy;
+  if (shoe && shoe.offsetParent) { const s = centerOf(shoe); sx = s.x; sy = s.y; }
+  else { const f = $('#felt').getBoundingClientRect(); sx = f.right - 30; sy = f.top - 20; }
+  return { x: sx - (r.left + r.width / 2), y: sy - (r.top + r.height / 2) };
+}
+// little coins flying between two elements (WAAPI, removed when done)
+function flyCoins(fromEl, toEl, n, { onLand } = {}) {
+  if (S.instant || REDUCED.matches || !fromEl || !toEl) return;
+  const a0 = centerOf(fromEl), b0 = centerOf(toEl);
+  for (let k = 0; k < n; k++) {
+    const d = document.createElement('i'); d.className = 'flycoin';
+    document.body.appendChild(d);
+    const jx = (Math.random() - .5) * 26, jy = (Math.random() - .5) * 18, midx = (a0.x + b0.x) / 2 + (Math.random() - .5) * 60, midy = Math.min(a0.y, b0.y) - 40 - Math.random() * 30;
+    const kf = [
+      { transform: `translate(${a0.x + jx - 7}px,${a0.y + jy - 7}px) scale(.6)`, opacity: 0 },
+      { transform: `translate(${a0.x + jx - 7}px,${a0.y + jy - 7}px) scale(1)`, opacity: 1, offset: .12 },
+      { transform: `translate(${midx - 7}px,${midy - 7}px) scale(1.15)`, opacity: 1, offset: .55 },
+      { transform: `translate(${b0.x - 7}px,${b0.y - 7}px) scale(.8)`, opacity: .9 },
+    ];
+    const an = d.animate(kf, { duration: 650 + Math.random() * 150, delay: k * 70, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'both' });
+    an.onfinish = () => { d.remove(); if (onLand && k === n - 1) onLand(); };
+    sfx.chip && k % 2 === 0 && setTimeout(() => sfx.chip(), k * 70 + 450);
+  }
 }
 
 /* =====================================================================
@@ -328,13 +360,18 @@ function revealCard(n, c) {
   n.dataset.c = c;
   void n.offsetWidth;
   n.classList.add('up');
+  if (!S.instant) { n.classList.add('lift'); n.addEventListener('animationend', () => n.classList.remove('lift'), { once: true }); }
   sfx.flip();
 }
 function syncCards(box, list, delayFn) {
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
     const n = box.children[i];
-    if (!n) { box.appendChild(makeCard(c, !S.instant, delayFn(i))); continue; }
+    if (!n) {
+      const nn = makeCard(c, !S.instant, delayFn(i)); box.appendChild(nn);
+      if (!S.instant) { const o = shoeOffset(nn); nn.style.setProperty('--fx', o.x + 'px'); nn.style.setProperty('--fy', o.y + 'px'); nn.style.setProperty('--fr', (Math.random() * 30 - 8).toFixed(0) + 'deg'); }
+      continue;
+    }
     const cur = n.dataset.c;
     if (cur === (c || '')) continue;
     if (!cur && c) revealCard(n, c);
@@ -347,8 +384,12 @@ function setTotal(el, cards, { bj = false, hidden = false } = {}) {
   const real = cards.filter(Boolean);
   el.className = 'total'; el.textContent = '';
   if (!real.length) return;
+  const key = hidden ? 'h' + real.length : bj ? 'bj' : handTotal(real).total + ':' + real.length;
+  if (el._k !== key) { if (el._k !== undefined && !S.instant) el._tu = performance.now() + 450; el._k = key; }
+  if (performance.now() < (el._tu || 0)) el.classList.add('tick');
   if (hidden) { el.textContent = handTotal([real[0]]).total; return; }
   const { total, soft } = handTotal(real);
+  if (total === 21 && !bj) el.classList.add('t21');
   if (bj) { el.classList.add('bj'); el.textContent = 'BLACKJACK'; return; }
   if (total > 21) { el.classList.add('bust'); el.textContent = 'BUST ' + total; return; }
   el.textContent = total;
@@ -363,7 +404,7 @@ const seatNodes = Array.from({ length: NSEATS }, (_, i) => {
   const d = document.createElement('div');
   d.className = 'seat'; d.dataset.seat = i;
   d.innerHTML = `<div class="emptytxt"></div>
-    <div class="seat-head"><span class="avatar"></span><div class="who"><div class="name"></div><div class="bal"><i class="coin"></i><b>0</b></div></div><div class="badges"></div></div>
+    <div class="seat-head"><span class="avawrap"><span class="avatar"></span></span><div class="who"><div class="name"></div><div class="bal"><i class="coin"></i><b>0</b></div></div><div class="badges"></div></div>
     <div class="timer"><i></i></div><div class="hands"></div><div class="betrow"></div><div class="float"></div>`;
   seatsEl.appendChild(d);
   return d;
@@ -448,7 +489,14 @@ function renderSeat(i, v, prev) {
     br._sig = sig;
     if (v.phase !== 'betting') br.innerHTML = '';
     else if (s.bet == null) br.innerHTML = `<span class="txt">${ic('sp-3-dots-bounce', 'dots')}Thinking</span>`;
-    else { br.innerHTML = `<div class="chip big ${chipClass(s.bet)} drop"><span>${short(s.bet)}</span></div><span class="txt">Bet locked</span>`; if (!S.instant && (!prev || prev.seats[i]?.bet == null)) sfx.chip(); }
+    else {
+      br.innerHTML = `<div class="chip big ${chipClass(s.bet)} drop"><span>${short(s.bet)}</span></div><span class="txt">Bet locked</span>`;
+      if (!S.instant && (!prev || prev.seats[i]?.bet == null)) {
+        sfx.chip();
+        const ch = br.firstElementChild, src = centerOf(node.querySelector('.bal .coin')), dst = centerOf(ch);
+        ch.style.setProperty('--cx', (src.x - dst.x) + 'px'); ch.style.setProperty('--cy', (src.y - dst.y) + 'px');
+      }
+    }
   }
 
   // floating net
@@ -458,6 +506,13 @@ function renderSeat(i, v, prev) {
     f.className = 'float'; void f.offsetWidth;
     f.textContent = net === 0 ? 'PUSH' : (net > 0 ? '+' : '−') + fmt(Math.abs(net));
     f.classList.add(net > 0 ? 'up' : net < 0 ? 'down' : 'up', 'go');
+    if (net !== 0) {
+      const stake = (v.hands[i] || []).reduce((q, h) => q + h.bet, 0) || 1;
+      const n = Math.max(3, Math.min(8, Math.round(Math.abs(net) / stake * 3) + 2));
+      const pot = modeOf(v) === 'showdown' ? $('#felt') : $('#dealerCards');
+      const coin = node.querySelector('.bal .coin');
+      if (net > 0) flyCoins(pot, coin, n); else flyCoins(coin, pot, Math.min(n, 4));
+    }
   }
 }
 
@@ -953,6 +1008,9 @@ function tickUI() {
     const t = n.querySelector('.timer');
     t.classList.toggle('on', !!on); t.classList.toggle('low', !!on && low);
     if (on) t.firstElementChild.style.transform = `scaleX(${frac})`;
+    const ring = n.querySelector('.avawrap');
+    ring.classList.toggle('ticking', !!on); ring.classList.toggle('low', !!on && low);
+    if (on) ring.style.setProperty('--p', frac.toFixed(3));
   });
   const showBar = v.timerAt && (v.timerKind === 'bet' || v.timerKind === 'action');
   $('#waitBar').parentElement.style.visibility = showBar ? 'visible' : 'hidden';
