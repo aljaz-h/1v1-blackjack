@@ -720,7 +720,7 @@ function renderSeatPoker(i, v, prev, node, s) {
   }
 
   // floating net + coins to the winner
-  if (v.phase === 'settled' && r && inHand && (!prev || prev.phase !== 'settled')) {
+  if (v.phase === 'settled' && r && inHand && !(r.folded && !r.net) && (!prev || prev.phase !== 'settled')) {
     const net = r.net, f = node.querySelector('.float');
     f.className = 'float'; void f.offsetWidth;
     f.textContent = net === 0 ? 'SPLIT' : (net > 0 ? '+' : '−') + fmt(Math.abs(net));
@@ -985,10 +985,10 @@ function renderDock(v) {
 /* =====================================================================
    lobby + settings + over
    ===================================================================== */
-const setIds = { sb: '#sSb', levelEvery: '#sLevel', startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', blindEvery: '#sBlind', betTime: '#sBetTime', actionTime: '#sActTime' };
+const setIds = { bots: '#sBots', sb: '#sSb', levelEvery: '#sLevel', startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', blindEvery: '#sBlind', betTime: '#sBetTime', actionTime: '#sActTime' };
 function collectSettings(over = {}) {
   return {
-    game: S.view ? S.view.settings.game || 'blackjack' : 'blackjack', sb: +$('#sSb').value, levelEvery: +$('#sLevel').value,
+    game: S.view ? S.view.settings.game || 'blackjack' : 'blackjack', sb: +$('#sSb').value, bots: +$('#sBots').value, levelEvery: +$('#sLevel').value,
     mode: S.view && S.view.settings.game !== 'poker' ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
     startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value, maxBetMode: (S.view && S.view.settings.maxBetMode) || 'auto',
     decks: +$('#sDecks').value, payout: +$('#sPayout').value, h17: $('#sH17').value === '1',
@@ -1061,13 +1061,16 @@ function renderLobby(v) {
   $('#lobbyMine').classList.toggle('hidden', !(open && me));
   if (open && me) $('#lobbyMine').innerHTML = `<button class="btn ${me.ready ? '' : 'primary'}" data-act="ready" data-val="${me.ready ? 0 : 1}">${me.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost" data-act="stand">Stand up</button><button class="btn ghost" data-act="profile">${ic('palette')}Avatar</button>`;
   const seatedN = v.seats.filter(Boolean).length, readyN = v.seats.filter((s) => s && s.ready).length;
-  const need = md.min - seatedN;
+  const nBots = st.game === 'poker' ? Math.max(0, Math.min(st.bots || 0, md.max - seatedN)) : 0;
+  const need = md.min - seatedN - nBots;
   if (!open) { $('#lobbyFoot').textContent = isHost ? 'Pick the game and rules, then open the table. Players choose their seats once it is open.' : `Waiting for ${v.host ? v.host.name : 'the host'} to set up the table…`; return; }
   const range = md.min === md.max ? `${md.min}` : `${md.min}–${md.max}`;
-  $('#lobbyFoot').textContent = need > 0 ? `${md.label} needs ${range} players. Waiting for ${need} more to take a seat. Everyone else spectates.` :
+  const botNote = nBots ? ` ${nBots} computer player${nBots > 1 ? 's' : ''} will fill the empty seats.` : '';
+  const foot = need > 0 ? `${md.label} needs ${range} players. Waiting for ${need} more to take a seat. Everyone else spectates.` :
     v.canStart ? 'Starting…' :
     seated ? `${readyN}/${seatedN} ready. Everyone hits Ready to start. Changing a setting un-readies everyone.` :
     seatedN >= md.max ? 'Table is full. You are watching.' : `${readyN}/${seatedN} ready. Take a seat to play, or just watch.`;
+  $('#lobbyFoot').textContent = foot + (need <= 0 && !v.canStart ? botNote : '');
 }
 $('#openBtn').addEventListener('click', () => act('open'));
 const lobbyClick = (e) => {

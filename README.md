@@ -48,7 +48,7 @@
 | **Showdown** | 2-6 | No dealer. Best hand takes the pot, with side pots for unequal bets. |
 | **Tournament** | 3-6 | Bet limits rise each round, run out of chips and you are out. |
 
-**Degen Poker** is cash-game style No-Limit Texas Hold'em for 2-6 players: choose the small blind (big blind is double), starting stack, an optional blind increase every N hands and a hand limit. Run out of chips and you are out, last stack standing wins.
+**Degen Poker** is cash-game style No-Limit Texas Hold'em for 2-6 players: choose the small blind (big blind is double), starting stack, an optional blind increase every N hands and a hand limit. Add up to 5 **computer players** to play on your own: they fill the empty seats when the match starts. Run out of chips and you are out, last stack standing wins.
 
 Blitz adds an 8 second clock to every bet and move. Rooms hold up to 6 seats plus spectators, the server keeps at most 10 rooms, and idle rooms expire after an hour.
 

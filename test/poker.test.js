@@ -344,3 +344,48 @@ test('solo: one player starts alone, plays the dealer, and the session ends at t
   assert.strictEqual(st.over.reason, 'rounds');
   assert.strictEqual(st.over.winner >= 0, st.balances[0] > 100, 'a win means finishing ahead of the starting stack');
 });
+
+/* ---------- computer players ---------- */
+test('poker vs bots: one human starts a match, bots fill the seats and play on their own', () => {
+  for (let g = 0; g < 6; g++) {
+    const nb = 1 + (g % 5);
+    const st = E.newRoom('bots', T0);
+    E.applyAction(st, U[0], { type: 'join' }, T0);
+    E.applyAction(st, U[0], { type: 'settings', settings: { game: 'poker', startingBalance: 300, sb: 10, bots: nb, maxRounds: 10, blitz: true } }, T0);
+    E.applyAction(st, U[0], { type: 'open' }, T0);
+    E.applyAction(st, U[0], { type: 'sit', seat: 0 }, T0);
+    E.applyAction(st, U[0], { type: 'ready', value: true }, T0);
+    assert.strictEqual(st.phase, 'poker', 'started with ' + nb + ' bots');
+    assert.strictEqual(st.seats.filter(Boolean).length, 1 + nb);
+    assert.ok(st.seats.filter(Boolean).slice(1).every((s) => s.bot));
+    const startTotal = (1 + nb) * 300;
+    let t = T0, guard = 0;
+    while (st.phase !== 'over' && guard++ < 3000) {
+      t += 500;
+      E.applyAction(st, U[0], { type: 'ping' }, t);
+      if (st.phase === 'poker' && st.pk.to === 0) {
+        const lg = E.poker.legal(st, 0);
+        E.applyAction(st, U[0], { type: lg.check ? 'check' : Math.random() < 0.2 ? 'fold' : 'call' }, t);
+      } else if (st.phase === 'settled' && !st.over) {
+        E.applyAction(st, U[0], { type: 'next' }, t);
+      } else E.tick(st, Math.max(t, st.timerAt || 0));
+      const held = st.balances.reduce((a, b) => a + b, 0) + (st.phase === 'poker' ? st.pk.total.reduce((a, b) => a + b, 0) : 0);
+      assert.strictEqual(held, startTotal, 'chips conserved');
+    }
+    assert.strictEqual(st.phase, 'over', 'match with bots finishes');
+    const v = E.buildView(st, U[0].id, t);
+    assert.ok(v.seats.filter(Boolean).slice(1).every((s) => s.bot && s.online));
+    E.applyAction(st, U[0], { type: 'lobby' }, t);
+    assert.strictEqual(st.seats.filter(Boolean).length, 1, 'bots leave when the match is over');
+  }
+});
+
+test('poker vs bots needs at least one human and enough players', () => {
+  const st = E.newRoom('b2', T0);
+  E.applyAction(st, U[0], { type: 'join' }, T0);
+  E.applyAction(st, U[0], { type: 'settings', settings: { game: 'poker', bots: 0 } }, T0);
+  E.applyAction(st, U[0], { type: 'open' }, T0);
+  E.applyAction(st, U[0], { type: 'sit', seat: 0 }, T0);
+  E.applyAction(st, U[0], { type: 'ready', value: true }, T0);
+  assert.strictEqual(st.phase, 'lobby', 'alone without bots does not start');
+});
