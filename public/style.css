@@ -707,3 +707,5 @@ button,.btn,.chip,.sw,.ib,.tab,.mtabs button{touch-action:manipulation;-webkit-t
 /* breathing room between the Chat/Rounds tabs and the content below */
 .chat>.panel-h{margin-bottom:14px}
 @media (min-width:1181px){.chat .rounds.panel{padding-top:4px}.chat #msgs{padding-top:4px}}
+
+.lobby-mine{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:-4px 0 20px}.lobby-mine.hidden{display:none}

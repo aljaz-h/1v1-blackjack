@@ -825,9 +825,13 @@ function renderLobby(v) {
       const mine = v.you.seat === i;
       return `<div class="lseat${s.ready ? ' ready' : ''}" data-s="${i}" style="${at(i)}--c:${colorOf(s.name, i)}">${avatar(s.name, i)}<b>${esc(s.name)}${mine ? ' (you)' : ''}</b>
         <div class="st">${!s.online ? 'Offline' : s.ready ? 'Ready ✓' : 'Not ready'}</div>
-        ${mine ? `<div class="row"><button class="btn ${s.ready ? '' : 'primary'} sm" data-act="ready" data-val="${s.ready ? 0 : 1}">${s.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost sm" data-act="stand">Stand up</button></div><button class="btn ghost sm" data-act="profile">${ic('palette')}Avatar</button>` : ''}</div>`;
+        </div>`;
     }).join('');
   }
+  // my own controls live under the table (keeps the seats on the curve compact)
+  const me = v.seats[v.you.seat];
+  $('#lobbyMine').classList.toggle('hidden', !(open && me));
+  if (open && me) $('#lobbyMine').innerHTML = `<button class="btn ${me.ready ? '' : 'primary'}" data-act="ready" data-val="${me.ready ? 0 : 1}">${me.ready ? 'Cancel ready' : ic('check') + 'Ready up'}</button><button class="btn ghost" data-act="stand">Stand up</button><button class="btn ghost" data-act="profile">${ic('palette')}Avatar</button>`;
   const seatedN = v.seats.filter(Boolean).length, readyN = v.seats.filter((s) => s && s.ready).length;
   const need = md.min - seatedN;
   if (!open) { $('#lobbyFoot').textContent = isHost ? 'Pick the game mode and rules, then open the table. Players choose their seats once it is open.' : `Waiting for ${v.host ? v.host.name : 'the host'} to set up the table…`; return; }
@@ -838,13 +842,15 @@ function renderLobby(v) {
     seatedN >= md.max ? 'Table is full. You are watching.' : `${readyN}/${seatedN} ready. Take a seat to play, or just watch.`;
 }
 $('#openBtn').addEventListener('click', () => act('open'));
-$('#lobbySeats').addEventListener('click', (e) => {
+const lobbyClick = (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   if (b.dataset.act === 'sit') act('sit', { seat: +b.dataset.seat });
   else if (b.dataset.act === 'ready') act('ready', { value: b.dataset.val === '1' });
   else if (b.dataset.act === 'stand') act('stand');
   else if (b.dataset.act === 'profile') openProfile();
-});
+};
+$('#lobbySeats').addEventListener('click', lobbyClick);
+$('#lobbyMine').addEventListener('click', lobbyClick);
 
 /* ---- avatar editor ---- */
 const PF = { color: null, icon: null };
