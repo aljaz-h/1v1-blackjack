@@ -8,6 +8,8 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/components/card-shoe/card-shoe.css">
+<link rel="stylesheet" href="/components/discard-tray/discard-tray.css">
 </head>
 <body data-tab="chat">
 
@@ -40,6 +42,13 @@
     <div class="vol" id="vol"><button class="icon-btn" id="soundBtn" title="Sound" data-ic="volume-2"></button><div class="volpop"><input type="range" id="volRange" min="0" max="100" step="1" value="70" aria-label="Volume"></div></div>
     <button class="me" id="meBtn" title="Edit your avatar"><span class="avatar sm" id="meAvatar"></span><span id="meName"></span><span class="pen" data-ic="pencil"></span></button>
     <button class="btn ghost sm" id="logoutBtn"><span data-ic="log-out"></span><span class="lbl">Leave</span></button>
+    <button class="icon-btn" id="moreBtn" type="button" aria-label="Menu" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>
+    <div class="moremenu" id="moreMenu" hidden>
+      <div class="mm-row mm-sound"><button type="button" class="mm-ic" id="mmMute" aria-label="Mute"></button><input type="range" id="mmVol" min="0" max="100" step="1" value="70" aria-label="Volume"></div>
+      <button type="button" class="mm-item" id="mmPause"><span data-ic="pause"></span>Pause game</button>
+      <button type="button" class="mm-item danger" id="mmForfeit"><span data-ic="flag"></span>Forfeit</button>
+      <button type="button" class="mm-item" id="mmLeave"><span data-ic="log-out"></span>Leave table</button>
+    </div>
   </header>
   <div class="modal" id="profile">
     <div class="modal-card">
@@ -85,7 +94,8 @@
         <div class="felt-tools"><button class="btn ghost sm forfeit" id="forfeitBtn"><span data-ic="flag"></span>Forfeit</button><button class="btn ghost sm forfeit" id="pauseBtn"><span data-ic="pause"></span>Pause</button></div>
         <div class="pause-ov hidden" id="pauseOv"><div class="pause-card"><span class="pause-ic" data-ic="pause"></span><b>Game paused</b><small id="pauseTxt"></small><button class="btn primary hidden" id="resumeBtn"><span data-ic="play"></span>Resume</button></div></div>
         <div class="chiprack" aria-hidden="true"><i class="cs" style="--c:#64748b;--n:6"></i><i class="cs" style="--c:#ef4444;--n:7"></i><i class="cs" style="--c:#3b82f6;--n:5"></i><i class="cs" style="--c:#16a34a;--n:7"></i><i class="cs" style="--c:#f97316;--n:6"></i><i class="cs" style="--c:#18181b;--n:7"></i><i class="cs" style="--c:#9333ea;--n:5"></i><i class="cs" style="--c:#db2777;--n:6"></i><i class="cs" style="--c:#ca8a04;--n:7"></i></div>
-        <div class="shoe" id="shoe"><div class="shoe-box"><i class="sb-card"></i><i class="sb-card sb2"></i></div><span id="shoeCount"></span></div>
+        <div class="discard" id="discard"></div>
+        <div class="shoe" id="shoe"></div>
         <div class="dealer-zone">
           <div class="dealer-label"><span id="dealerLbl">DEALER</span><span class="total" id="dealerTotal"></span></div>
           <div class="cards" id="dealerCards"></div>
@@ -171,8 +181,8 @@
       </div>
     </section>
 
-    <nav class="mtabs">
-      <button data-t="chat" class="on"><span data-ic="message-circle"></span>Chat</button><button data-t="rounds"><span data-ic="history"></span>Rounds</button><button data-t="info"><span data-ic="users"></span>Table</button>
+    <nav class="mtabs" aria-label="Chat, rounds and table info">
+      <button data-t="chat" class="on"><span data-ic="message-circle"></span>Chat<i class="mbadge" id="mUnread"></i></button><button data-t="rounds"><span data-ic="history"></span>Rounds</button><button data-t="info"><span data-ic="users"></span>Table</button>
     </nav>
 
     <section class="rounds panel" data-tabpanel="rounds">
@@ -194,8 +204,12 @@
   </aside>
 </div>
 
+<div class="sheet-bar" id="sheetBar"><button type="button" class="grab" id="sheetGrab" aria-label="Close panel"><i></i></button><div class="stabs"><button data-t="chat"><span data-ic="message-circle"></span>Chat<i class="mbadge" id="sUnread"></i></button><button data-t="rounds"><span data-ic="history"></span>Rounds</button><button data-t="info"><span data-ic="users"></span>Table</button></div></div>
+
 <div id="toasts"></div>
 <script src="/icons.js"></script>
+<script src="/components/card-shoe/card-shoe.js"></script>
+<script src="/components/discard-tray/discard-tray.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

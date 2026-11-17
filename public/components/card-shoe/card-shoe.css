@@ -1,0 +1,21 @@
+/* Card shoe: black acrylic housing, open top with the card stack, sloped front with an arch for the next card.
+   Size it with --cs-w on the container (default 104px). */
+.card-shoe{
+  --cs-w:104px;width:var(--cs-w);display:flex;flex-direction:column;align-items:center;gap:2px;
+  font:700 10px/1.1 var(--font,"Geist",ui-sans-serif,system-ui,sans-serif);letter-spacing:.08em;color:rgba(255,255,255,.55);
+  user-select:none;-webkit-user-select:none;
+}
+.card-shoe svg{display:block;width:100%;height:auto;overflow:visible;transform:scaleX(-1)}
+.cs-lbl{font-variant-numeric:tabular-nums;white-space:nowrap}
+.cs-lbl:empty{display:none}
+.cs-rock{transform-box:fill-box;transform-origin:50% 100%}
+.card-shoe.is-shuffle .cs-rock{animation:cs-shake .7s ease-in-out}
+.card-shoe.is-shuffle .cs-stack{animation:cs-riffle .7s ease-in-out}
+.cs-out{transform-box:fill-box}
+.card-shoe.is-deal .cs-out{animation:cs-deal .38s cubic-bezier(.3,.7,.4,1)}
+.card-shoe.is-deal .cs-rock{animation:cs-kick .38s ease-out}
+.cs-stack-rect,.cs-weight,.cs-weight-hi{transition:x .35s cubic-bezier(.3,1.1,.4,1),width .35s cubic-bezier(.3,1.1,.4,1)}
+@keyframes cs-deal{0%{transform:translate(0,0);opacity:1}55%{transform:translate(9px,4px) rotate(2deg);opacity:1}56%{opacity:0}57%{transform:translate(-2px,-1px);opacity:0}100%{transform:translate(0,0);opacity:1}}
+@keyframes cs-kick{0%,100%{transform:translateX(0)}30%{transform:translateX(-1.2px)}}
+@keyframes cs-shake{0%,100%{transform:rotate(0)}15%{transform:rotate(-2.2deg) translateY(-1px)}35%{transform:rotate(2deg)}55%{transform:rotate(-1.5deg)}75%{transform:rotate(1deg)}}
+@keyframes cs-riffle{0%,100%{opacity:1}30%,60%{opacity:.35}}

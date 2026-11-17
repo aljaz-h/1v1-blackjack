@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chip rack demo</title>
+<style>
+  body{margin:0;min-height:100vh;font:14px/1.4 "Geist",ui-sans-serif,system-ui,sans-serif;color:#ececec;
+    background:radial-gradient(ellipse at 50% 0%,#1f6b45,#0e3b25 60%,#082418);padding:28px 16px 60px}
+  main{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+  h1{font-size:16px;margin:0 0 4px;letter-spacing:.04em;text-transform:uppercase;color:#d7f5e3}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  button.t{padding:7px 12px;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);color:#fff;font:700 12px inherit;cursor:pointer}
+  button.t:hover{background:rgba(0,0,0,.5)}
+  #log{font:12px ui-monospace,monospace;background:rgba(0,0,0,.35);border-radius:10px;padding:10px 12px;min-height:40px;white-space:pre-wrap}
+  .narrow{max-width:340px}
+  small{opacity:.7}
+</style>
+<link rel="stylesheet" href="chip-rack.css">
+</head><body><main>
+  <section><h1>Select mode</h1><div id="rackA"></div></section>
+  <section><h1>Tap mode (adds to a bet)</h1>
+    <div id="rackB"></div>
+    <p>Bet: <b id="bet">0</b> <button class="t" id="clr">Clear</button></p></section>
+  <section class="narrow"><h1>Narrow container</h1><div id="rackC"></div></section>
+  <section><div class="row">
+    <button class="t" id="b1">Balance 60</button><button class="t" id="b2">Balance 5,000</button>
+    <button class="t" id="b3">Limits $5 – ∞</button><button class="t" id="b4">+1 × $25</button><button class="t" id="b5">−1 × $25</button>
+  </div><p><small>Callback log</small></p><div id="log"></div></section>
+</main>
+<script src="chip-rack.js"></script>
+<script src="demo.js"></script>
+</body></html>

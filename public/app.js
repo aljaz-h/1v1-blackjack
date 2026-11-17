@@ -176,12 +176,13 @@ function countTo(el, to) {
   if (bal) { bal.classList.remove('gain', 'loss'); void bal.offsetWidth; bal.classList.add(to > from ? 'gain' : 'loss'); clearTimeout(bal._t); bal._t = setTimeout(() => bal.classList.remove('gain', 'loss'), 1100); }
 }
 
+const shoeC = new CardShoe('#shoe', { total: 312 }), discC = new DiscardTray('#discard', { total: 312 });
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 // offset of `el` from the card shoe (falls back to the top of the table when the shoe is hidden on small screens)
 function shoeOffset(el) {
   const shoe = $('#shoe'), r = el.getBoundingClientRect();
   let sx, sy;
-  if (shoe && shoe.offsetParent) { const s = centerOf(shoe); sx = s.x; sy = s.y; }
+  if (shoe && shoe.offsetParent) { const s = shoe.getBoundingClientRect(); sx = s.left + s.width * 0.3; sy = s.top + s.height * 0.32; } // the shoe's mouth
   else { const f = $('#felt').getBoundingClientRect(); sx = f.right - 30; sy = f.top - 20; }
   return { x: sx - (r.left + r.width / 2), y: sy - (r.top + r.height / 2) };
 }
@@ -444,6 +445,8 @@ function soundIcon() {
   $('#soundBtn').innerHTML = ic(off ? 'volume-x' : 'volume-2');
   $('#volRange').value = off ? 0 : sfx.level;
   $('#volRange').style.setProperty('--p', ($('#volRange').value) + '%');
+  $('#mmMute').innerHTML = ic(off ? 'volume-x' : 'volume-2');
+  $('#mmVol').value = off ? 0 : sfx.level; $('#mmVol').style.setProperty('--p', $('#mmVol').value + '%');
 }
 const touchUI = matchMedia('(hover: none)');
 $('#soundBtn').addEventListener('click', () => {
@@ -457,10 +460,58 @@ $('#volRange').addEventListener('input', (e) => {
   if (performance.now() - volTick > 160) { volTick = performance.now(); sfx.chip(); } // audible feedback while dragging
 });
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#vol')) $('#vol').classList.remove('open'); });
+/* phones: Chat / Rounds / Table open in a bottom sheet; wider stacked layouts keep the old tab bar */
+const phoneUI = matchMedia('(max-width:640px)');
+function sheetSync() {
+  const open = document.body.classList.contains('sheet-open'), t = document.body.dataset.tab;
+  $$('#sheetBar .stabs button').forEach((x) => x.classList.toggle('on', x.dataset.t === t));
+  $('#sheetBar').classList.toggle('on', open);
+}
+function openSheet(t) {
+  document.body.dataset.tab = t; document.body.classList.add('sheet-open'); sheetSync();
+  if (t === 'chat') { S.unread = 0; renderUnread(); const m = $('#msgs'); m.scrollTop = m.scrollHeight; }
+}
+function closeSheet() { document.body.classList.remove('sheet-open'); sheetSync(); const a = document.activeElement; if (a && a.blur && a.closest && a.closest('.chat')) a.blur(); }
 $$('.mtabs button').forEach((b) => b.addEventListener('click', () => {
+  if (phoneUI.matches) { openSheet(b.dataset.t); return; }
   document.body.dataset.tab = b.dataset.t;
   $$('.mtabs button').forEach((x) => x.classList.toggle('on', x === b));
 }));
+$$('#sheetBar .stabs button').forEach((b) => b.addEventListener('click', () => openSheet(b.dataset.t)));
+$('#sheetGrab').addEventListener('click', closeSheet);
+$('#felt').addEventListener('click', () => { if (document.body.classList.contains('sheet-open')) closeSheet(); });
+{ // drag the handle down to dismiss
+  let y0 = null;
+  const bar = $('#sheetBar');
+  bar.addEventListener('pointerdown', (e) => { if (e.target.closest('.stabs button')) return; y0 = e.clientY; });
+  addEventListener('pointerup', (e) => { if (y0 != null && e.clientY - y0 > 40) closeSheet(); y0 = null; });
+  addEventListener('pointercancel', () => { y0 = null; });
+}
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('sheet-open')) closeSheet(); });
+phoneUI.addEventListener('change', () => { document.body.classList.remove('sheet-open'); sheetSync(); });
+
+/* phone header: the ... menu holds sound, pause, forfeit and leave */
+const moreMenu = $('#moreMenu'), moreBtn = $('#moreBtn');
+function closeMore() { moreMenu.hidden = true; moreBtn.setAttribute('aria-expanded', 'false'); }
+moreBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!moreMenu.hidden) return closeMore();
+  $('#mmPause').hidden = $('#pauseBtn').classList.contains('hidden');
+  $('#mmForfeit').hidden = $('#forfeitBtn').classList.contains('hidden');
+  moreMenu.hidden = false; moreBtn.setAttribute('aria-expanded', 'true'); soundIcon();
+});
+document.addEventListener('pointerdown', (e) => { if (!moreMenu.hidden && !e.target.closest('#moreMenu, #moreBtn')) closeMore(); });
+$('#mmPause').addEventListener('click', () => { closeMore(); $('#pauseBtn').click(); });
+$('#mmForfeit').addEventListener('click', () => { closeMore(); $('#forfeitBtn').click(); });
+$('#mmLeave').addEventListener('click', () => { closeMore(); $('#logoutBtn').click(); });
+$('#mmMute').addEventListener('click', () => {
+  if (sfx.level === 0) sfx.setLevel(70);
+  sfx.setMuted(!sfx.muted); soundIcon(); sfx.unlock(); sfx.chip();
+});
+$('#mmVol').addEventListener('input', (e) => {
+  const l = +e.target.value; sfx.setLevel(l); sfx.setMuted(l === 0); soundIcon(); sfx.unlock();
+  if (performance.now() - volTick > 160) { volTick = performance.now(); sfx.chip(); }
+});
 
 /* =====================================================================
    cards
@@ -545,7 +596,7 @@ const seatNodes = Array.from({ length: NSEATS }, (_, i) => {
   d.className = 'seat'; d.dataset.seat = i;
   d.innerHTML = `<div class="emptytxt"></div>
     <div class="seat-head"><span class="avawrap"><span class="avatar"></span><span class="pos"></span></span><div class="who"><div class="name"></div><div class="bal"><i class="coin"></i><b>0</b></div></div><div class="badges"></div></div>
-    <div class="timer"><i></i></div><div class="hands"></div><div class="betrow"></div><div class="float"></div>`;
+    <div class="stag"></div><div class="timer"><i></i></div><div class="hands"></div><div class="betrow"></div><div class="float"></div>`;
   seatsEl.appendChild(d);
   return d;
 });
@@ -584,6 +635,37 @@ function renderDealer(v) {
   setTotal(t, vis, { hidden, bj: real.length === 2 && handTotal(real).total === 21 && !hidden, until: $('#dealerCards')._until });
 }
 
+// state tag under a seat on phones: THINKING / WAITING / STAND / BUST ...
+function seatTag(v, i, s, active) {
+  if (!s.alive) return ['', ''];
+  if (isPk(v)) {
+    const pk = v.poker;
+    if (v.phase !== 'poker' || !pk.inHand[i]) return ['', ''];
+    if (pk.folded[i]) return ['FOLDED', 'bust'];
+    if (active) return ['THINKING', 'think'];
+    if (pk.allin[i]) return ['ALL IN', 'stand'];
+    return ['WAITING', 'wait'];
+  }
+  if (v.phase === 'betting') return s.bet == null ? ['THINKING', 'think'] : ['BET LOCKED', 'stand'];
+  if (v.phase !== 'playing' && v.phase !== 'dealer') return ['', ''];
+  if (active) return ['THINKING', 'think'];
+  const hs = v.hands[i] || [];
+  if (!hs.length) return ['', ''];
+  const tot = hs.map((h) => handTotal(h.cards.filter(Boolean)).total);
+  if (hs.every((h) => h.done)) {
+    if (tot.every((t) => t > 21)) return ['BUST', 'bust'];
+    if (hs.length === 1 && hs[0].bj) return ['BLACKJACK', 'stand'];
+    return ['STAND', 'stand'];
+  }
+  return ['WAITING', 'wait'];
+}
+function setTag(node, [txt, kind]) {
+  const t = node.querySelector('.stag');
+  if (t._k !== txt) { t._k = txt; t.textContent = txt; }
+  t.dataset.k = kind;
+  for (const k of ['think', 'wait', 'stand', 'bust']) node.classList.toggle('st-' + k, kind === k);
+}
+
 function renderSeat(i, v, prev) {
   const node = seatNodes[i], s = v.seats[i];
   node.classList.toggle('empty', !s);
@@ -591,7 +673,7 @@ function renderSeat(i, v, prev) {
   if (!s) {
     node.querySelector('.emptytxt').textContent = `Seat ${i + 1} is open`;
     node.style.removeProperty('--c');
-    node.classList.remove('active', 'multi', 'out', 'fold', 'allin');
+    node.classList.remove('active', 'multi', 'out', 'fold', 'allin'); setTag(node, ['', '']);
     node.querySelector('.hands').innerHTML = '';
     return;
   }
@@ -607,6 +689,7 @@ function renderSeat(i, v, prev) {
   const active = pkm ? v.phase === 'poker' && v.poker.to === i : v.phase === 'playing' && v.turn && v.turn.seat === i;
   node.classList.toggle('active', !!active);
   node.classList.toggle('offline', !s.online);
+  setTag(node, seatTag(v, i, s, !!active));
   if (pkm) return renderSeatPoker(i, v, prev, node, s);
   node.classList.remove('fold', 'allin');
   node.querySelector('.pos').textContent = '';
@@ -743,7 +826,12 @@ function renderBanner(v) {
   } else if (v.phase === 'playing' && v.turn) {
     const mine = v.turn.seat === v.you.seat;
     t = mine ? 'YOUR MOVE' : `${nameOf(v.turn.seat).toUpperCase()}'S MOVE`;
+    if (mine) cls = 'mine';
     if (v.hands[v.turn.seat].length > 1) sub = `Hand ${v.turn.hand + 1} of ${v.hands[v.turn.seat].length}`;
+    else if (!mine && inRound && !(v.hands[v.you.seat] || []).every((h) => h.done)) { // how many players until it is your turn
+      const ord = dealOrder(v), k = ord.indexOf(v.you.seat) - ord.indexOf(v.turn.seat);
+      if (k > 0) sub = `You're ${k + 1}${['', '', 'nd', 'rd'][k + 1] || 'th'}`;
+    }
   } else if (v.phase === 'playing') t = showdown ? 'SHOWDOWN…' : 'DEALER CHECKS…';
   else if (v.phase === 'dealer') { t = 'DEALER PLAYS'; icon = 'sp-bars-scale-middle'; }
   else if (v.phase === 'settled' && v.results) {
@@ -908,6 +996,7 @@ pkEl.call.addEventListener('click', () => pkAct('call'));
 pkEl.go.addEventListener('click', () => pkAct('raise', { to: pkState.to }));
 
 function setDock(which, text) {
+  document.body.dataset.dock = which;
   for (const k of Object.keys(dock)) dock[k].classList.toggle('on', k === which);
   if (which === 'wait') $('#waitTxt').textContent = text || '';
   if (which === 'spec') $('#specTxt').textContent = text || '';
@@ -920,6 +1009,7 @@ function renderDock(v) {
   $('#dock').classList.toggle('hidden', v.phase === 'lobby' || v.phase === 'over');
   $('#forfeitBtn').classList.toggle('hidden', !(playing && ['betting', 'playing', 'dealer', 'poker'].includes(v.phase)));
   $('#dock').classList.toggle('frozen', !!v.paused);
+  $('#dock').classList.toggle('idle', v.phase === 'playing' && !v.legal && playing);
   $('#pauseBtn').classList.toggle('hidden', !(v.you.host && live && !v.over && !v.paused));
   $('#pauseOv').classList.toggle('hidden', !v.paused);
   if (v.paused) {
@@ -968,7 +1058,10 @@ function renderDock(v) {
       playBtn.split.classList.toggle('hidden', modeOf(v) === 'showdown');
     } else if (v.turn) {
       const nm = v.seats[v.turn.seat] ? v.seats[v.turn.seat].name : '…';
-      if (playing) setDock('wait', `${nm} is playing…`); else setDock('spec', `${nm} is playing. ${specTxt}`);
+      if (playing && phoneUI.matches) { // phones: keep the action buttons in place, dimmed, until it is your turn
+        setDock('play'); Object.values(playBtn).forEach((b) => (b.disabled = true));
+        playBtn.split.classList.toggle('hidden', modeOf(v) === 'showdown');
+      } else if (playing) setDock('wait', `${nm} is playing…`); else setDock('spec', `${nm} is playing. ${specTxt}`);
     } else setDock(playing ? 'wait' : 'spec', modeOf(v) === 'showdown' ? 'Showdown…' : 'Dealer is checking for blackjack…');
   } else if (v.phase === 'dealer') setDock(playing ? 'wait' : 'spec', 'Dealer plays…');
   else if (v.phase === 'settled') {
@@ -1306,7 +1399,8 @@ function renderChat(v) {
     d.append(b, document.createTextNode(m.x));
     box.appendChild(d);
   }
-  if (last !== 0 && desktop() && document.body.classList.contains('chat-collapsed')) {
+  const hiddenChat = desktop() ? document.body.classList.contains('chat-collapsed') : phoneUI.matches && !(document.body.classList.contains('sheet-open') && document.body.dataset.tab === 'chat');
+  if (last !== 0 && hiddenChat) {
     S.unread = (S.unread || 0) + fresh.filter((m) => !m.s && m.u !== v.you.id).length;
     renderUnread();
   }
@@ -1332,6 +1426,7 @@ placeRounds();
 function renderUnread() {
   const txt = S.unread > 99 ? '99+' : S.unread || '';
   const u = $('#unread'); u.textContent = txt; u.classList.toggle('on', S.unread > 0);
+  for (const id of ['#mUnread', '#sUnread']) { const m = $(id); m.textContent = txt; m.classList.toggle('on', S.unread > 0); }
   const t = $('#tabUnread'); t.textContent = txt; t.classList.toggle('on', S.unread > 0 && $('aside.chat').dataset.pane === 'rounds');
 }
 function setChat(collapsed) {
@@ -1399,13 +1494,24 @@ function render(v, prev) {
       const dx = (50 - x) * fw / 100, dy = (40 - y) * fh / 100, d = Math.hypot(dx, dy) || 1, k = Math.min(86, d * 0.45) / d;
       seatNodes[i].style.setProperty('--bdx', (dx * k).toFixed(0) + 'px'); seatNodes[i].style.setProperty('--bdy', (dy * k).toFixed(0) + 'px');
     } }
+  { // phone layout: opponents get compact seats in order, your own seat is the big one
+    const opp = v.seats.map((x, i) => (x && i !== v.you.seat ? i : -1)).filter((i) => i >= 0);
+    $('#felt').dataset.opp = opp.length; sEl.dataset.opp = opp.length; sEl.dataset.size = opp.length >= 3 ? 'compact' : 'roomy';
+    seatNodes.forEach((n, i) => { const k = opp.indexOf(i); if (k >= 0) n.dataset.o = k + 1; else delete n.dataset.o; });
+  }
   for (let i = 0; i < NSEATS; i++) renderSeat(i, v, prev);
   renderBanner(v);
   renderDock(v);
   $('#tablebox').classList.toggle('setup', v.phase === 'lobby' || v.phase === 'over');
   renderLobby(v); renderOver(v);
   renderSide(v); renderRounds(v); renderChat(v);
-  $('#shoeCount').textContent = v.phase === 'lobby' || isPk(v) ? '' : `SHOE ${v.shoeLeft}`;
+  if (v.phase !== 'lobby' && !isPk(v)) {
+    // purely visual: the engine owns the shoe, we derive what sits in the tray from its numbers
+    const total = (v.settings.decks || 6) * 52;
+    const onTable = v.dealer.cards.length + v.hands.reduce((q, hs) => q + (hs || []).reduce((a, h) => a + h.cards.length, 0), 0);
+    shoeC.setRemaining(v.shoeLeft, total);
+    discC.setCount(Math.max(0, total - v.shoeLeft - onTable), total);
+  } else if (shoeC.remaining !== shoeC.total) { shoeC.setRemaining(shoeC.total); discC.setCount(0); }
   tickUI();
 }
 
@@ -1422,6 +1528,8 @@ function tickUI() {
     const t = n.querySelector('.timer');
     t.classList.toggle('on', !!on); t.classList.toggle('low', !!on && low);
     if (on) t.firstElementChild.style.transform = `scaleX(${frac})`;
+    const tg = n.querySelector('.stag');
+    if (tg._k === 'THINKING') { const sec = on ? Math.ceil(remain / 1000) : 0; tg.textContent = sec ? `THINKING ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : 'THINKING'; }
     const ring = n.querySelector('.avawrap');
     ring.classList.toggle('ticking', !!on); ring.classList.toggle('low', !!on && low);
     if (on) ring.style.setProperty('--p', frac.toFixed(3));
@@ -1450,7 +1558,7 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
-  if (e.key === '/' && !typing && S.view) { e.preventDefault(); if (!desktop()) document.body.dataset.tab = 'chat'; else if (document.body.classList.contains('chat-collapsed')) setChat(false); $('#chatInput').focus(); return; }
+  if (e.key === '/' && !typing && S.view) { e.preventDefault(); if (!desktop()) { if (phoneUI.matches) openSheet('chat'); else document.body.dataset.tab = 'chat'; } else if (document.body.classList.contains('chat-collapsed')) setChat(false); $('#chatInput').focus(); return; }
   if (typing || !S.view || appEl.classList.contains('hidden')) return;
   if (S.view.paused) return;
   const k = e.key.toLowerCase();

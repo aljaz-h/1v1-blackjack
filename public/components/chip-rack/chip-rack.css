@@ -1,0 +1,91 @@
+/* Chip rack: dealer chip tray with a Min / Max plaque. Pure CSS + inline SVG, no assets.
+   Theme with CSS variables on the container or any ancestor:
+     --cr-accent  selection colour        (default: the site's --cyan)
+     --cr-max     max width of the rack   (default 680px)                                   */
+.chip-rack{
+  --cr-accent:var(--cyan,#38bdf8);
+  --cr-gold:#d9b25c;
+  position:relative;width:100%;max-width:var(--cr-max,680px);margin:0 auto;
+  font:600 12px/1.2 var(--font,"Geist",ui-sans-serif,system-ui,sans-serif);color:#e8e8ea;
+  container-type:inline-size;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
+}
+
+/* ---- Min / Max plaque ---- */
+.cr-plaque{
+  position:relative;z-index:2;display:inline-flex;flex-direction:column;gap:2px;margin:0 0 -7px 12px;padding:6px 12px 12px;
+  border-radius:8px 8px 0 0;color:#16181b;font:800 12px/1.15 var(--font,"Geist",ui-sans-serif,system-ui,sans-serif);letter-spacing:.01em;
+  background:linear-gradient(180deg,#e4e6ea 0%,#c3c7cd 48%,#a7acb4 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),inset 0 -1px 0 rgba(0,0,0,.25),0 -2px 10px rgba(0,0,0,.25);
+}
+.cr-plaque::before,.cr-plaque::after{content:'';position:absolute;top:5px;width:4px;height:4px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#6b7078);box-shadow:0 1px 1px rgba(0,0,0,.4)}
+.cr-plaque::before{left:4px}.cr-plaque::after{right:4px}
+.cr-plaque span{display:flex;justify-content:space-between;gap:10px;padding:0 4px}
+.cr-plaque b{font-variant-numeric:tabular-nums;font-weight:900}
+
+/* ---- frame + tray ---- */
+.cr-rack{
+  position:relative;padding:10px;border-radius:16px;
+  background:linear-gradient(180deg,#34373c 0%,#222428 38%,#16171a 100%);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -2px 0 rgba(0,0,0,.55),0 14px 32px rgba(0,0,0,.5),0 2px 0 rgba(0,0,0,.6);
+}
+.cr-rack::before{ /* thin brushed-gold rail along the top edge */
+  content:'';position:absolute;left:14px;right:14px;top:3px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--cr-gold) 18%,#f4e1a1 50%,var(--cr-gold) 82%,transparent);opacity:.55;
+}
+.cr-tray{
+  display:flex;gap:clamp(2px,1.1cqw,8px);padding:clamp(4px,1.4cqw,10px);border-radius:11px;
+  background:linear-gradient(180deg,#07080a,#101114);
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.9),inset 0 -1px 0 rgba(255,255,255,.07),inset 0 0 0 1px rgba(0,0,0,.7);
+  overflow-x:auto;overflow-y:visible;scrollbar-width:none;
+}
+.cr-tray::-webkit-scrollbar{display:none}
+
+/* ---- slot button ---- */
+.cr-slot{
+  position:relative;flex:1 1 0;min-width:30px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0 0;margin-top:-6px;
+  border-radius:10px;color:inherit;background:none;border:0;cursor:pointer;outline:none;
+  transition:transform .22s cubic-bezier(.2,1.2,.4,1),filter .2s;
+}
+.cr-slot svg{display:block;width:100%;height:auto;overflow:visible;pointer-events:none}
+.cr-slot:hover:not(:disabled){transform:translateY(-3px)}
+.cr-slot:active:not(:disabled){transform:translateY(0) scale(.96);transition-duration:.08s}
+.cr-slot:focus-visible{box-shadow:0 0 0 2px var(--cr-accent)}
+.cr-slot:disabled{cursor:not-allowed;filter:saturate(.25) brightness(.65)}
+.cr-slot.is-empty .cr-lbl{opacity:.45}
+.cr-lbl{display:flex;flex-direction:column;align-items:center;gap:1px;padding-bottom:3px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;color:#c9ccd2;transition:color .2s}
+.cr-s{display:none}
+.cr-cnt{font-size:9px;font-weight:700;color:#7d828b;letter-spacing:.03em}
+.chip-rack.no-labels .cr-lbl{display:none}
+
+/* selected: lifts, glows, label lights up */
+.cr-slot.is-selected{transform:translateY(-7px)}
+.cr-slot.is-selected .cr-lbl{color:#fff}
+.cr-slot.is-selected .cr-glow{opacity:1}
+.cr-slot::after{ /* ground glow under a selected stack */
+  content:'';position:absolute;left:12%;right:12%;bottom:-4px;height:8px;border-radius:50%;
+  background:radial-gradient(closest-side,var(--cr-accent),transparent);opacity:0;transform:scale(.6);
+  transition:opacity .25s,transform .3s cubic-bezier(.2,1.2,.4,1);pointer-events:none;
+}
+.cr-slot.is-selected::after{opacity:.75;transform:scale(1)}
+.cr-glow{opacity:0;transition:opacity .25s}
+
+/* top chip animations */
+.cr-top{transform-box:fill-box;transform-origin:50% 100%;transition:transform .25s cubic-bezier(.2,1.3,.4,1)}
+.cr-slot:hover:not(:disabled) .cr-top{transform:translateY(-2px)}
+.cr-slot.is-selected .cr-top{transform:translateY(-5px)}
+.cr-slot.is-hop .cr-top{animation:cr-hop .42s cubic-bezier(.3,1.5,.5,1)}
+.cr-slot.is-drop .cr-top{animation:cr-drop .4s cubic-bezier(.3,1.2,.5,1)}
+.cr-slot.is-take .cr-top{animation:cr-take .32s ease-in}
+@keyframes cr-hop{0%{transform:translateY(0)}38%{transform:translateY(-12px) rotate(-3deg)}100%{transform:translateY(0)}}
+@keyframes cr-drop{0%{transform:translateY(-22px);opacity:0}60%{opacity:1}100%{transform:translateY(0)}}
+@keyframes cr-take{0%{transform:translateY(0)}100%{transform:translateY(-14px);opacity:.2}}
+.cr-ripple{position:absolute;left:50%;top:38%;width:10px;height:10px;margin:-5px;border-radius:50%;border:2px solid var(--cr-accent);opacity:0;pointer-events:none;animation:cr-ripple .55s ease-out}
+@keyframes cr-ripple{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(5)}}
+
+/* ---- narrow rack ---- */
+@container (max-width:420px){
+  .cr-plaque{font-size:11px;padding:5px 9px 11px}
+  .cr-lbl{font-size:10px}.cr-cnt{display:none}.cr-f{display:none}.cr-s{display:inline}
+}
+@container (max-width:300px){.cr-lbl{display:none}.cr-slot{min-width:26px}}

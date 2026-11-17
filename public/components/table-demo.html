@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Card shoe + discard tray demo</title>
+<link rel="stylesheet" href="card-shoe/card-shoe.css"><link rel="stylesheet" href="discard-tray/discard-tray.css">
+<style>
+  body{margin:0;min-height:100vh;font:14px/1.4 "Geist",ui-sans-serif,system-ui,sans-serif;color:#ececec;background:radial-gradient(ellipse at 50% 0%,#1f6b45,#0e3b25 60%,#082418);padding:28px 16px}
+  .felt{max-width:640px;margin:0 auto 20px;height:200px;border-radius:16px;position:relative;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.18)}
+  #discard{position:absolute;left:18px;top:14px;--dt-w:120px}#shoe{position:absolute;right:18px;top:14px;--cs-w:150px}
+  .row{max-width:640px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px}
+  button{padding:7px 12px;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);color:#fff;font:700 12px inherit;cursor:pointer}
+</style></head><body>
+<div class="felt"><div id="discard"></div><div id="shoe"></div></div>
+<div class="row"><button id="deal">Deal 2 cards</button><button id="round">Play a round (8 cards)</button><button id="reset">Reshuffle</button><button id="big">Shoe 25%</button></div>
+<script src="card-shoe/card-shoe.js"></script><script src="discard-tray/discard-tray.js"></script><script src="table-demo.js"></script>
+</body></html>
