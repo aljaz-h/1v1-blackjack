@@ -78,6 +78,6 @@ const server = http.createServer((req, res) => {
   }
 });
 server.keepAliveTimeout = 65_000;
-server.listen(PORT, '0.0.0.0', () => console.log(`Degen 21 listening on :${PORT} (store: ${h.store.kind})`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Degen Casino listening on :${PORT} (store: ${h.store.kind})`));
 
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(); setTimeout(() => process.exit(0), 300).unref(); });

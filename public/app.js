@@ -28,8 +28,16 @@ const MODES = {
   showdown: { label: 'Showdown', icon: 'dices', desc: '2–6 players, no dealer. Best hand takes the pot (side pots for unequal bets). A natural blackjack beats 21.' },
   tournament: { label: 'Tournament', icon: 'trophy', desc: '3–6 players vs the dealer. Bet limits rise as rounds pass; run out of chips and you are eliminated.' },
   holdem: { label: "Texas Hold'em", icon: 'spade', desc: "2–6 players. Two hole cards each, five on the board, best five-card hand wins. Fold, call or raise; run out of chips and you are out." },
+  roulette: { label: 'Roulette', icon: 'dices', desc: 'A shared wheel. Place chips on numbers, colours, dozens and more, lock in, and watch the ball. Play on until you are broke or the limit hits.' },
+  crash: { label: 'Crash', icon: 'rocket', desc: 'A multiplier climbs until it crashes. Bet, then cash out before it goes. Set an auto cash-out if you like.' },
+  plinko: { label: 'Plinko', icon: 'triangle', desc: 'Drop balls down a peg board. Pick the rows and the risk; the slot it lands in sets the payout. Drop as often as you like.' },
+  dice: { label: 'Dice', icon: 'dices', desc: 'Pick a target and roll over or under it. The lower the win chance, the bigger the payout.' },
+  mines: { label: 'Mines', icon: 'gem', desc: 'Reveal tiles on a 5×5 board without hitting a mine. Every safe tile raises your payout; cash out any time.' },
 };
 const STREET = { preflop: 'Pre-flop', flop: 'Flop', turn: 'Turn', river: 'River' };
+const ARC = ['roulette', 'crash', 'plinko', 'dice', 'mines'];
+const UNIT = { plinko: ['ball', 'balls'], dice: ['roll', 'rolls'], mines: ['game', 'games'] };
+const isArc = (v) => !!(v && ARC.includes(v.game) && v.arcade);
 const isPk = (v) => !!(v && v.game === 'poker' && v.poker);
 const modeOf = (v) => (v && v.mode && v.mode.id) || 'duel';
 const place = (n) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : n + 'th');
@@ -1005,9 +1013,11 @@ function setDock(which, text) {
 function renderDock(v) {
   const me = v.you.seat, seated = me >= 0, mine = seated ? v.seats[me] : null;
   const playing = !!(mine && mine.alive); // seated and still in the match
-  const live = ['betting', 'playing', 'dealer', 'poker', 'settled'].includes(v.phase);
-  $('#dock').classList.toggle('hidden', v.phase === 'lobby' || v.phase === 'over');
-  $('#forfeitBtn').classList.toggle('hidden', !(playing && ['betting', 'playing', 'dealer', 'poker'].includes(v.phase)));
+  const live = ['betting', 'playing', 'dealer', 'poker', 'arcade', 'settled'].includes(v.phase);
+  $('#dock').classList.toggle('hidden', v.phase === 'lobby' || v.phase === 'over' || isArc(v));
+  if (isArc(v)) document.body.dataset.dock = 'none';
+  $('#arena').classList.toggle('frozen', !!v.paused);
+  $('#forfeitBtn').classList.toggle('hidden', !(playing && ['betting', 'playing', 'dealer', 'poker', 'arcade'].includes(v.phase)));
   $('#dock').classList.toggle('frozen', !!v.paused);
   $('#dock').classList.toggle('idle', v.phase === 'playing' && !v.legal && playing);
   $('#pauseBtn').classList.toggle('hidden', !(v.you.host && live && !v.over && !v.paused));
@@ -1016,7 +1026,7 @@ function renderDock(v) {
     $('#pauseTxt').textContent = v.you.host ? 'Timers are stopped. Resume when everyone is ready.' : `${v.paused.name} paused the match. Waiting for the host to resume.`;
     $('#resumeBtn').classList.toggle('hidden', !v.you.host);
   }
-  if (!live) return;
+  if (!live || isArc(v)) return;
   const specTxt = seated ? 'You are out of chips. Spectating.' : 'You are spectating.';
 
   if (v.phase === 'poker') {
@@ -1078,11 +1088,11 @@ function renderDock(v) {
 /* =====================================================================
    lobby + settings + over
    ===================================================================== */
-const setIds = { bots: '#sBots', sb: '#sSb', levelEvery: '#sLevel', startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', blindEvery: '#sBlind', betTime: '#sBetTime', actionTime: '#sActTime' };
+const setIds = { wheel: '#sWheel', bots: '#sBots', sb: '#sSb', levelEvery: '#sLevel', startingBalance: '#sBalance', minBet: '#sMin', maxBet: '#sMax', decks: '#sDecks', payout: '#sPayout', maxRounds: '#sRounds', blindEvery: '#sBlind', betTime: '#sBetTime', actionTime: '#sActTime' };
 function collectSettings(over = {}) {
   return {
-    game: S.view ? S.view.settings.game || 'blackjack' : 'blackjack', sb: +$('#sSb').value, bots: +$('#sBots').value, levelEvery: +$('#sLevel').value,
-    mode: S.view && S.view.settings.game !== 'poker' ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
+    game: S.view ? S.view.settings.game || 'blackjack' : 'blackjack', wheel: $('#sWheel').value, sb: +$('#sSb').value, bots: +$('#sBots').value, levelEvery: +$('#sLevel').value,
+    mode: S.view && !['poker', ...ARC].includes(S.view.settings.game) ? S.view.settings.mode : 'duel', blitz: $('#sBlitz').checked,
     startingBalance: +$('#sBalance').value, minBet: +$('#sMin').value, maxBet: +$('#sMax').value, maxBetMode: (S.view && S.view.settings.maxBetMode) || 'auto',
     decks: +$('#sDecks').value, payout: +$('#sPayout').value, h17: $('#sH17').value === '1',
     maxRounds: +$('#sRounds').value, blindEvery: +$('#sBlind').value, betTime: +$('#sBetTime').value, actionTime: +$('#sActTime').value,
@@ -1095,7 +1105,7 @@ $('#maxSeg').addEventListener('click', (e) => { const b = e.target.closest('[dat
 $$('#settings input:not(#sMax), #settings select').forEach((el) => el.addEventListener('change', () => act('settings', { settings: collectSettings() })));
 $$('#balPresets button').forEach((b) => b.addEventListener('click', () => { $('#sBalance').value = b.dataset.v; act('settings', { settings: collectSettings() }); }));
 $('#gameSel').addEventListener('click', (e) => { const b = e.target.closest('[data-game]'); if (b && !b.disabled && S.view && (S.view.settings.game || 'blackjack') !== b.dataset.game) act('settings', { settings: collectSettings({ game: b.dataset.game }) }); });
-$('#modeSel').innerHTML = Object.entries(MODES).filter(([id]) => id !== 'holdem').map(([id, m]) => `<button type="button" data-mode="${id}">${ic(m.icon)}<span>${m.label}</span></button>`).join('');
+$('#modeSel').innerHTML = Object.entries(MODES).filter(([id]) => id !== 'holdem' && !ARC.includes(id)).map(([id, m]) => `<button type="button" data-mode="${id}">${ic(m.icon)}<span>${m.label}</span></button>`).join('');
 $('#modeSel').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b && !b.disabled && S.view && S.view.settings.mode !== b.dataset.mode) act('settings', { settings: collectSettings({ mode: b.dataset.mode }) }); });
 
 function renderLobby(v) {
@@ -1126,7 +1136,7 @@ function renderLobby(v) {
     $('#modeDesc').textContent = (MODES[st.mode] || MODES.duel).desc;
     $('#settings').dataset.mode = st.mode;
     $$('#gameSel button').forEach((b) => b.classList.toggle('on', b.dataset.game === (st.game || 'blackjack')));
-    $('#lblRounds').textContent = st.game === 'poker' ? 'Hands' : 'Rounds';
+    $('#lblRounds').textContent = st.game === 'poker' ? 'Hands' : UNIT[st.game] ? UNIT[st.game][1][0].toUpperCase() + UNIT[st.game][1].slice(1) : 'Rounds';
     $('#sRounds').options[0].textContent = st.mode === 'duel' || st.mode === 'solo' ? 'Until broke' : 'Until one left';
   }
   $$('#settings input, #settings select, #balPresets button, #modeSel button, #gameSel button').forEach((el) => (el.disabled = !isHost));
@@ -1140,7 +1150,7 @@ function renderLobby(v) {
     const n = md.max, spread = [1, 1, .55, .7, .85, 1][n] ?? 1;
     const at = (i) => { const t = Math.PI * (i + .5) / n; return `--x:${(50 - 44 * spread * Math.cos(t)).toFixed(1)}%;--y:${(2 + 56 * Math.sin(t)).toFixed(1)}%;`; };
     $('#lobbySeats').dataset.n = n;
-    $('#lobbySeats').innerHTML = `<div class="arc-dealer">${st.game === 'poker' ? "TEXAS HOLD'EM" : st.mode === 'showdown' ? 'SHOWDOWN · NO DEALER' : 'DEALER'}</div>` + Array.from({ length: n }, (_, i) => {
+    $('#lobbySeats').innerHTML = `<div class="arc-dealer">${st.game === 'poker' ? "TEXAS HOLD'EM" : ARC.includes(st.game) ? MODES[st.game].label.toUpperCase() : st.mode === 'showdown' ? 'SHOWDOWN · NO DEALER' : 'DEALER'}</div>` + Array.from({ length: n }, (_, i) => {
       const s = v.seats[i];
       if (!s) return `<div class="lseat" data-s="${i}" style="${at(i)}--c:var(--s${i})"><span class="avatar" style="opacity:.3;--c:var(--dim)">?</span><div class="st">Seat ${i + 1}</div><button class="btn primary sm" data-act="sit" data-seat="${i}">${ic('armchair')}${seated ? 'Move here' : 'Take seat'}</button></div>`;
       const mine = v.you.seat === i;
@@ -1236,18 +1246,18 @@ function renderOver(v) {
   const sig = JSON.stringify([o, v.seats.map((s) => s && [s.id]), v.you.seat, v.round]);
   if (S.sig.over === sig) return;
   S.sig.over = sig;
-  const mode = modeOf(v), duel = mode === 'duel', solo = mode === 'solo';
+  const mode = modeOf(v), duel = mode === 'duel', arc = ARC.includes(mode), solo = mode === 'solo' || !!(v.arcade && v.arcade.solo);
   const top = o.winner >= 0 ? rk.find((r) => r.seat === o.winner) : null;
-  const title = solo ? (o.winner >= 0 ? 'You finished ahead' : o.reason === 'broke' ? 'Busted out' : o.reason === 'rounds' ? 'Session over' : 'You left the table') : top ? (mode === 'holdem' ? `${esc(top.name)} wins the table` : mode === 'tournament' ? `${esc(top.name)} wins the tournament` : duel || mode === 'showdown' || mode === 'classic' ? `${esc(top.name)} takes the pot` : '') : 'Dead heat';
+  const title = solo ? (o.winner >= 0 ? 'You finished ahead' : o.reason === 'broke' ? 'Busted out' : o.reason === 'rounds' ? 'Session over' : 'You left the table') : top ? (mode === 'holdem' ? `${esc(top.name)} wins the table` : mode === 'tournament' ? `${esc(top.name)} wins the tournament` : duel || mode === 'showdown' || mode === 'classic' ? `${esc(top.name)} takes the pot` : arc ? `${esc(top.name)} wins the table` : '') : 'Dead heat';
   const reason = solo ? { broke: 'You ran out of chips', rounds: o.winner >= 0 ? 'Round limit reached with a profit' : 'Round limit reached below your starting stack', forfeit: 'You left the table', disconnect: 'You disconnected' }[o.reason] || '' : { broke: duel ? 'Opponent is out of chips' : 'Last player standing', rounds: 'Round limit reached. Highest stack wins', forfeit: duel ? 'Opponent forfeited' : 'Everyone else left', disconnect: duel ? 'Opponent disconnected' : 'Everyone else left' }[o.reason] || '';
   const start = v.settings.startingBalance;
-  const stat = (r) => { const sx = v.seats[r.seat]; return sx && sx.name === r.name ? (mode === 'holdem' ? `${v.stats.w[r.seat]} hands won · ${v.stats.l[r.seat]} lost` : `${v.stats.w[r.seat]}W · ${v.stats.l[r.seat]}L · ${v.stats.p[r.seat]}P · ${v.stats.bj[r.seat]} BJ`) : ''; };
+  const stat = (r) => { const sx = v.seats[r.seat]; return sx && sx.name === r.name ? (mode === 'holdem' ? `${v.stats.w[r.seat]} hands won · ${v.stats.l[r.seat]} lost` : arc ? `${v.stats.w[r.seat]} won · ${v.stats.l[r.seat]} lost` : `${v.stats.w[r.seat]}W · ${v.stats.l[r.seat]}L · ${v.stats.p[r.seat]}P · ${v.stats.bj[r.seat]} BJ`) : ''; };
   const body = rk.length <= 2
     ? `<div class="over-stats">${rk.map((r) => { const net = r.balance - start; return `<div class="d${r.place === 1 && o.winner >= 0 ? ' w' : ''}">${avatar(r.name, r.seat, 'sm')} <b style="display:inline">${esc(r.name)}</b><b>${fmt(r.balance)}</b><span class="${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span><div style="color:var(--dim);font-size:12px;margin-top:4px">${stat(r)}</div></div>`; }).join('')}</div>`
     : `<div class="rank-list">${rk.map((r) => { const net = r.balance - start; return `<div class="rk${r.place === 1 && o.winner >= 0 ? ' w' : ''}"><span class="pl">${r.place === 1 ? ic('crown') : place(r.place)}</span>${avatar(r.name, r.seat, 'sm')}<span class="nm"><b>${esc(r.name)}</b><small>${stat(r)}</small></span><span class="bl"><i class="coin"></i>${fmt(r.balance)}</span><span class="nt ${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span></div>`; }).join('')}</div>`;
   const seated = v.you.seat >= 0;
   const open = Array.from({ length: v.mode.max }, (_, i) => i).filter((i) => !v.seats[i]);
-  $('#overCard').innerHTML = `<div class="trophy">${ic(o.winner >= 0 ? 'trophy' : 'handshake')}</div><h2>${title || 'Match over'}</h2><div style="color:var(--dim)">${reason} · ${v.round} ${mode === 'holdem' ? 'hand' : 'round'}${v.round === 1 ? '' : 's'}</div>
+  $('#overCard').innerHTML = `<div class="trophy">${ic(o.winner >= 0 ? 'trophy' : 'handshake')}</div><h2>${title || 'Match over'}</h2><div style="color:var(--dim)">${reason} · ${v.round} ${mode === 'holdem' ? 'hand' : UNIT[mode] ? UNIT[mode][0] : 'round'}${v.round === 1 ? '' : 's'}</div>
     ${body}
     ${seated ? '<button class="btn primary big" id="backLobby">Back to lobby (rematch)</button>' : open.length ? '<div class="row" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' + open.map((i) => `<button class="btn primary" data-sit="${i}">Take seat ${i + 1}</button>`).join('') + '</div>' : '<div style="color:var(--dim)">Waiting for the players…</div>'}`;
   const bl = $('#backLobby'); if (bl) bl.addEventListener('click', () => act('lobby'));
@@ -1277,7 +1287,12 @@ function renderSide(v) {
   const st = v.settings, mode = st.mode, lim = v.limits;
   const rules = [`<span class="mode-chip">${ic(MODES[mode].icon)}${MODES[mode].label}</span>`];
   if (st.blitz) rules.push(`<span class="mode-chip blitz">${ic('zap')}Blitz</span>`);
-  if (mode === 'holdem') {
+  if (ARC.includes(mode)) {
+    if (mode === 'roulette') rules.push(st.wheel === 'american' ? 'American wheel' : 'European wheel');
+    if (mode === 'crash') rules.push('1% house edge');
+    rules.push(`Bet ${fmt(lim.min)}–${fmtMax(lim.max)}`);
+    rules.push(st.maxRounds ? `${st.maxRounds} ${UNIT[mode] ? UNIT[mode][1] : 'rounds'}` : 'Until broke');
+  } else if (mode === 'holdem') {
     const sb = v.poker ? v.poker.sb : st.sb, bb = v.poker ? v.poker.bb : st.sb * 2;
     rules.push(`Blinds ${fmt(sb)}/${fmt(bb)}`);
     if (st.levelEvery) rules.push(`Up ×1.5 / ${st.levelEvery} hands`, `Level ${(v.poker ? v.poker.level : 0) + 1}`);
@@ -1290,7 +1305,7 @@ function renderSide(v) {
     rules.push(st.maxRounds ? `${st.maxRounds} rounds` : mode === 'duel' || mode === 'solo' ? 'Until broke' : 'Until one left');
   }
   $('#rules').innerHTML = rules.map((t) => (t.startsWith('<span') ? t : `<span>${t}</span>`)).join('');
-  if (mode === 'holdem') {
+  if (ARC.includes(mode)) { /* the arena replaces the felt text */ } else if (mode === 'holdem') {
     const sb = v.poker ? v.poker.sb : st.sb, bb = v.poker ? v.poker.bb : st.sb * 2;
     $('#ftPay2').textContent = $('#ftPay').textContent = "TEXAS HOLD'EM";
     $('#ftRule2').textContent = $('#ftRule').textContent = `BLINDS ${fmt(sb)} / ${fmt(bb)} · NO LIMIT`;
@@ -1300,7 +1315,7 @@ function renderSide(v) {
   }
   const seatedIdx = v.seats.map((x, i) => (x ? i : -1)).filter((i) => i >= 0);
   $('#duel').classList.toggle('cols3', seatedIdx.length > 4);
-  $('#duel').innerHTML = (seatedIdx.length ? seatedIdx : [0, 1]).map((i) => { const x = v.seats[i]; return `<div class="d"><small>${x ? esc(x.name) : 'Seat ' + (i + 1)}</small><b style="color:${x ? colorOf(x.name, i) : seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>${mode === 'holdem' ? `hands won–lost · ${v.stats.p[i]} split` : `W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ`}</small></div>`; }).join('');
+  $('#duel').innerHTML = (seatedIdx.length ? seatedIdx : [0, 1]).map((i) => { const x = v.seats[i]; return `<div class="d"><small>${x ? esc(x.name) : 'Seat ' + (i + 1)}</small><b style="color:${x ? colorOf(x.name, i) : seatColor(i)}">${v.stats.w[i]} – ${v.stats.l[i]}</b><small>${ARC.includes(mode) ? 'won–lost' : mode === 'holdem' ? `hands won–lost · ${v.stats.p[i]} split` : `W–L · ${v.stats.p[i]} push · ${v.stats.bj[i]} BJ`}</small></div>`; }).join('');
   drawSpark(v);
 }
 function drawSpark(v) {
@@ -1319,10 +1334,14 @@ function renderRounds(v) {
   S.sig.rounds = sig;
   $('#rempty').classList.toggle('hidden', v.history.length > 0);
   const label = { win: 'WIN', lose: 'LOSE', push: 'PUSH', bust: 'BUST', blackjack: 'BJ' };
-  const pkG = v.game === 'poker';
-  $('#rhDealer').textContent = pkG ? 'Board' : 'Dealer'; $('#rhBet').textContent = pkG ? 'Pot' : 'Bet';
-  $('#rempty').textContent = pkG ? 'No hands yet. Deal in.' : 'No rounds yet. Place a bet.';
+  const pkG = v.game === 'poker', arG = ARC.includes(v.game);
+  $('#rhDealer').textContent = arG ? 'Result' : pkG ? 'Board' : 'Dealer'; $('#rhBet').textContent = pkG ? 'Pot' : 'Bet';
+  $('#rempty').textContent = pkG ? 'No hands yet. Deal in.' : UNIT[v.game] ? `No ${UNIT[v.game][1]} yet.` : 'No rounds yet. Place a bet.';
   $('#rbody').innerHTML = [...v.history].reverse().map((h) =>
+    h.ar ? h.seats.map((s, i) => `<div class="rrow"><span>${i === 0 ? '#' + h.r : ''}</span><span class="pl">${avatar(s.name, s.seat, 'sm')}<span>${esc(s.name)}</span></span>
+      <span><span class="o ${s.net > 0 ? 'pos' : s.net < 0 ? 'neg' : ''}">${esc(s.note || '')}</span></span>
+      <span>${i === 0 ? `<span class="o">${esc(h.outcome || '')}</span>` : ''}</span>
+      <span>${fmt(s.stake)}</span><span class="${s.net > 0 ? 'pos' : s.net < 0 ? 'neg' : ''}"><b>${s.net > 0 ? '+' : s.net < 0 ? '−' : ''}${fmt(Math.abs(s.net))}</b></span></div>`).join('') :
     h.poker ? h.seats.map((s, i) => `<div class="rrow"><span>${i === 0 ? '#' + h.r : ''}</span><span class="pl">${avatar(s.name, s.seat, 'sm')}<span>${esc(s.name)}</span></span>
       <span>${s.folded ? '<span class="o">FOLDED</span>' : (s.cards ? s.cards.map((c) => (c ? mc(c) : '')).join('') : '') + (s.hand ? `<span class="o ${s.net > 0 ? 'pos' : ''}">${esc(s.hand)}</span>` : '')}</span>
       <span>${i === 0 ? (h.board && h.board.length ? h.board.map(mc).join('') : '<span class="o">No flop</span>') : ''}</span>
@@ -1372,7 +1391,7 @@ function sysNode(m) {
         <div class="ev-sub"><i class="coin"></i>Starting stack <b>${fmt(D.stack)}</b></div>`);
     }
     case 'round':
-      return card('ev-round', `<div class="ev-h">${ic('spade')}<span>${D.poker ? 'Hand' : 'Round'} ${D.r}</span></div>` + D.p.map((p, i) => {
+      return card('ev-round', `<div class="ev-h">${ic(D.ar ? MODES[D.ar].icon : 'spade')}<span>${D.ar === 'plinko' ? 'Ball' : D.poker ? 'Hand' : D.ar ? MODES[D.ar].label + ' ·' : 'Round'} ${D.ar === 'plinko' ? '' : D.ar ? 'round ' : ''}${D.r}${D.o ? ' · ' + esc(D.o) : ''}</span></div>` + D.p.map((p, i) => {
         const up = p.net > 0, dn = p.net < 0;
         return `<div class="rr ${up ? 'up' : dn ? 'dn' : 'eq'}">${avatar(p.n, p.s != null ? p.s : i, 'sm')}<span class="rn">${esc(p.n)}</span>
           <span class="rv">${ic(up ? 'trending-up' : dn ? 'trending-down' : 'equal')}${up ? '+' : dn ? '−' : ''}${fmt(Math.abs(p.net))}</span>
@@ -1468,7 +1487,7 @@ function render(v, prev) {
   $('#roomName').textContent = v.room;
   // transitions
   if (prev && !S.instant) {
-    if ((isPk(v) ? v.poker.legal && !(prev.poker && prev.poker.legal) : v.legal && !prev.legal)) { sfx.turn(); if (document.hidden) document.title = '🔔 Your move · Degen 21'; }
+    if ((isPk(v) ? v.poker.legal && !(prev.poker && prev.poker.legal) : v.legal && !prev.legal)) { sfx.turn(); if (document.hidden) document.title = '🔔 Your move · Degen Casino'; }
     if (v.phase === 'settled' && prev.phase !== 'settled' && v.you.seat >= 0 && (isPk(v) ? v.poker.res : v.results)) {
       const n = isPk(v) ? (v.poker.res[v.you.seat] ? v.poker.res[v.you.seat].net : 0) : (v.results[v.you.seat] || []).reduce((a, r) => a + r.net, 0);
       setTimeout(() => (n > 0 ? sfx.win() : n < 0 ? sfx.lose() : sfx.push()), 120);
@@ -1502,10 +1521,11 @@ function render(v, prev) {
   for (let i = 0; i < NSEATS; i++) renderSeat(i, v, prev);
   renderBanner(v);
   renderDock(v);
+  if (window.Arcade) Arcade.render(v);
   $('#tablebox').classList.toggle('setup', v.phase === 'lobby' || v.phase === 'over');
   renderLobby(v); renderOver(v);
   renderSide(v); renderRounds(v); renderChat(v);
-  if (v.phase !== 'lobby' && !isPk(v)) {
+  if (v.phase !== 'lobby' && !isPk(v) && !isArc(v)) {
     // purely visual: the engine owns the shoe, we derive what sits in the tray from its numbers
     const total = (v.settings.decks || 6) * 52;
     const onTable = v.dealer.cards.length + v.hands.reduce((q, hs) => q + (hs || []).reduce((a, h) => a + h.cards.length, 0), 0);
@@ -1544,12 +1564,13 @@ function tickUI() {
     $('#nextTxt').textContent = v.over ? (isPk(v) ? 'Final hand' : 'Final round') : `Next ${isPk(v) ? 'hand' : 'round'} in ${Math.ceil(remain / 1000)}s`;
 }
 setInterval(tickUI, 100);
+if (window.Arcade) Arcade.init({ act, fmt, esc, short, avatar, colorOf, serverNow, sfx, ic, DENOMS, chipClass, LS });
 
 /* keep presence alive */
 setInterval(() => { if (S.token && S.view) post('/api/act', { room: S.room, type: 'ping' }).catch((e) => { if (e.status === 401) logout('Session expired. Sign in again.'); }); }, 10000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
-  document.title = 'Degen 21 · Blackjack';
+  document.title = 'Degen Casino';
   if (S.token && S.view) { post('/api/act', { room: S.room, type: 'ping' }).catch(() => {}); if (S.conn !== 'live' && S.ac) S.ac.abort(); }
 });
 

@@ -1,5 +1,5 @@
 services:
-  degen21:
+  degen-casino:
     build: .
     restart: unless-stopped
     environment:

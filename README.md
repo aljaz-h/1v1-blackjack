@@ -1,22 +1,22 @@
 <div align="center">
 
-# ♠ DEGEN 21
+# ♠ DEGEN CASINO
 
-**Multiplayer blackjack in your browser. No accounts, no downloads, just a password and a seat.**
+**A play-money multiplayer casino in your browser: blackjack, poker, roulette, crash, plinko, dice and mines. No accounts, no downloads, just a password and a seat.**
 
 ![Node](https://img.shields.io/badge/node-%E2%89%A520-38bdf8?style=flat-square)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-8b5cf6?style=flat-square)
 ![Deploy](https://img.shields.io/badge/deploy-Docker%20%7C%20Vercel-22c55e?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)
 
-<img src="docs/screenshots/table.png" alt="Degen 21 table" width="900">
+<img src="docs/screenshots/table.png" alt="Degen Casino table" width="900">
 
 </div>
 
 ## ✨ Highlights
 
 - 🪑 **Real table feel**: curved felt, arc seating, chip rack, shoe, flying chips and card flips.
-- 🎲 **Two games, one table**: pick **Degen 21** (blackjack, four modes) or **Degen Poker** (Texas Hold'em) when you set up the room, plus a **Blitz** timer toggle.
+- 🎲 **Seven games, one table**: pick **Degen 21** (blackjack), **Degen Poker** (Texas Hold'em), **Roulette**, **Crash**, **Plinko**, **Dice** or **Mines** when you set up the room, plus a **Blitz** timer toggle. Chips are play money only.
 - ♠️ **Texas Hold'em**: 2-6 players, no limit, side pots, split pots, optional rising blinds, hole cards hidden server side until showdown.
 - 🛡️ **Real casino rules**: insurance and even money when the dealer shows an Ace, split, double, all in, and a max bet that is auto, custom or unlimited.
 - 👑 **Host-run rooms**: the first in sets the rules, opens the table, everyone picks a seat, and the host can pause the match.
@@ -50,6 +50,18 @@
 
 **Degen Poker** is cash-game style No-Limit Texas Hold'em for 2-6 players: choose the small blind (big blind is double), starting stack, an optional blind increase every N hands and a hand limit. Add up to 5 **computer players** to play on your own: they fill the empty seats when the match starts. Run out of chips and you are out, last stack standing wins.
 
+**Roulette** is a shared wheel (European or American): chips on straight-up numbers, splits, streets, corners, six-lines, dozens, columns and the even-money bets, with rebet and double. Everyone locks in and the ball spins for the whole table.
+
+**Crash** is a multiplier that climbs from 1x until it crashes (1% house edge, capped at 100x). Place a bet, cash out before it goes, or set an auto cash-out.
+
+**Plinko** drops balls down 8, 12 or 16 rows of pegs at low, medium or high risk. Every drop is rolled on the server and paid by the slot it lands in; drop as often as you like.
+
+**Dice** rolls 0.00-99.99 over or under your target (1% to 98% win chance, 1% edge): the lower the odds, the bigger the multiplier.
+
+**Mines** is a 5x5 board with 1-24 hidden mines. Every safe tile raises the payout, cash out any time or hit a mine and lose the bet. Mine positions never leave the server until the game ends.
+
+All outcomes (the wheel number, the crash point, the plinko path) are rolled on the server; the browser only animates them.
+
 Blitz adds an 8 second clock to every bet and move. Rooms hold up to 6 seats plus spectators, the server keeps at most 10 rooms, and idle rooms expire after an hour.
 
 ## 🚀 Quick start
@@ -65,8 +77,8 @@ Open it, enter the password, pick a name and a room, share the link (`/?room=nam
 **Docker / Coolify** (recommended, instant updates, state in memory, run a single replica)
 
 ```bash
-docker build -t degen21 .
-docker run -d -p 3000:3000 -e SITE_PASSWORD=hunter2 -e AUTH_SECRET=$(openssl rand -hex 24) degen21
+docker build -t degen-casino .
+docker run -d -p 3000:3000 -e SITE_PASSWORD=hunter2 -e AUTH_SECRET=$(openssl rand -hex 24) degen-casino
 ```
 
 On Coolify choose the **Dockerfile** build pack, expose port `3000`, health check `/healthz`.

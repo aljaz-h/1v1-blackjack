@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Degen 21 · Blackjack</title>
+<title>Degen Casino</title>
 <meta name="theme-color" content="#17181a">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
@@ -18,8 +18,8 @@
   <div class="login-bg" id="loginBg" aria-hidden="true"></div>
   <form id="loginForm" class="login-card" autocomplete="off">
     <span class="idx tl" aria-hidden="true"><b>A</b><i>♠</i></span><span class="idx br" aria-hidden="true"><b>A</b><i>♠</i></span><span class="wm" aria-hidden="true">♠</span>
-    <div class="logo"><svg viewBox="0 0 32 32" width="34" height="34"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>21</b></span></div>
-    <p class="tag">Online blackjack. Pick a mode, take a seat, play chips.</p>
+    <div class="logo"><svg viewBox="0 0 32 32" width="34" height="34"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>CASINO</b></span></div>
+    <p class="tag">Blackjack, poker, roulette, crash, plinko, dice and mines. Take a seat, play chips.</p>
     <div id="stepPass"><label>Master password<input id="inPass" type="password" placeholder="Table password" autocomplete="current-password" required></label></div>
     <div id="stepUser" class="hidden">
       <div class="unlocked"><span data-ic="check"></span>Password accepted <button type="button" class="linkbtn" id="backPass">Change</button></div>
@@ -35,7 +35,7 @@
 <!-- ============ APP ============ -->
 <div id="app" class="app hidden">
   <header class="topbar">
-    <div class="logo sm"><svg viewBox="0 0 32 32" width="26" height="26"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>21</b></span></div>
+    <div class="logo sm"><svg viewBox="0 0 32 32" width="26" height="26"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>CASINO</b></span></div>
     <button class="pill" id="roomPill" title="Copy invite link"><span class="dot" id="connDot"></span><span class="conn-spin hidden" id="connSpin" data-ic="sp-180-ring-with-bg"></span><span id="roomName">main</span><span data-ic="copy"></span></button>
     <div class="grow"></div>
     <span class="online" id="onlineCount"></span>
@@ -82,6 +82,11 @@
       <div data-g="bj"><kbd>Enter</kbd> place bet / next round <kbd>/</kbd> chat</div>
       <div data-g="pk"><kbd>F</kbd> fold <kbd>C</kbd> check / call <kbd>R</kbd> raise</div>
       <div data-g="pk"><kbd>Enter</kbd> next hand <kbd>/</kbd> chat</div>
+      <div data-g="pl"><kbd>Space</kbd> drop a ball <kbd>/</kbd> chat</div>
+      <div data-g="cr"><kbd>Space</kbd> cash out <kbd>/</kbd> chat</div>
+      <div data-g="rl"><kbd>/</kbd> chat</div>
+      <div data-g="dc"><kbd>Space</kbd> roll <kbd>/</kbd> chat</div>
+      <div data-g="mn"><kbd>/</kbd> chat</div>
     </section>
   </aside>
 
@@ -103,6 +108,7 @@
         <div class="felt-text"><div id="ftPay">BLACKJACK PAYS 3 TO 2</div><div id="ftRule">DEALER STANDS ON ALL 17s</div></div>
         <div class="banner" id="banner"></div>
         <div class="seats" id="seats"></div>
+        <div class="arena" id="arena"></div>
 
         <!-- lobby overlay -->
         <div class="overlay" id="lobby">
@@ -111,13 +117,13 @@
             <div class="lobby-seats arc" id="lobbySeats"></div>
             <div class="lobby-mine hidden" id="lobbyMine"></div>
             <div class="settings" id="settings" data-mode="duel">
-              <div class="field wide"><label>Game</label><div class="modes games" id="gameSel"><button type="button" data-game="blackjack"><span data-ic="spade"></span><span>Degen 21</span><small>Blackjack</small></button><button type="button" data-game="poker"><span data-ic="dices"></span><span>Degen Poker</span><small>Texas Hold'em</small></button></div></div>
+              <div class="field wide"><label>Game</label><div class="modes games" id="gameSel"><button type="button" data-game="blackjack"><span data-ic="spade"></span><span>Degen 21</span><small>Blackjack</small></button><button type="button" data-game="poker"><span data-ic="dices"></span><span>Degen Poker</span><small>Texas Hold'em</small></button><button type="button" data-game="roulette"><span data-ic="circle"></span><span>Roulette</span><small>Spin the wheel</small></button><button type="button" data-game="crash"><span data-ic="rocket"></span><span>Crash</span><small>Cash out in time</small></button><button type="button" data-game="plinko"><span data-ic="triangle"></span><span>Plinko</span><small>Drop the ball</small></button><button type="button" data-game="dice"><span data-ic="dices"></span><span>Dice</span><small>Over or under</small></button><button type="button" data-game="mines"><span data-ic="gem"></span><span>Mines</span><small>Dodge the bombs</small></button></div></div>
               <div class="field wide" data-g="bj"><label>Game mode</label><div class="modes" id="modeSel"></div><div class="mode-desc" id="modeDesc"></div></div>
               <div class="field wide"><label class="switch"><input type="checkbox" id="sBlitz"><span class="sw-track"></span><span class="sw-txt"><b>Blitz</b><small>8s to bet and act, fast rounds. Works with every mode.</small></span></label></div>
               <div class="field wide"><label>Starting balance</label>
                 <div class="inline"><input id="sBalance" type="number" min="50" step="50"><div class="presets" id="balPresets"><button type="button" data-v="500">500</button><button type="button" data-v="1000">1K</button><button type="button" data-v="5000">5K</button><button type="button" data-v="10000">10K</button><button type="button" data-v="100000">100K</button></div></div></div>
-              <div class="field" data-g="bj"><label>Min bet</label><input id="sMin" type="number" min="1"></div>
-              <div class="field" data-g="bj"><label>Max bet</label>
+              <div class="field" data-g="bj ar"><label>Min bet</label><input id="sMin" type="number" min="1"></div>
+              <div class="field" data-g="bj ar"><label>Max bet</label>
                 <div class="seg" id="maxSeg" role="group" aria-label="Max bet mode"><button type="button" data-m="auto" title="Half of the starting balance">Auto</button><button type="button" data-m="manual" title="Type your own limit">Custom</button><button type="button" data-m="unlimited" title="No table limit, bet anything up to your stack"><span data-ic="infinity"></span></button></div>
                 <input id="sMax" type="number" min="1"><div class="maxnote hidden" id="maxNote">No limit, your stack is the cap.</div></div>
               <div class="field" data-g="bj"><label>Decks</label><select id="sDecks"><option>1</option><option>2</option><option>4</option><option>6</option><option>8</option></select></div>
@@ -125,11 +131,12 @@
               <div class="field" data-g="bj" data-f="house"><label>Dealer soft 17</label><select id="sH17"><option value="0">Stands</option><option value="1">Hits</option></select></div>
               <div class="field"><label id="lblRounds">Rounds</label><select id="sRounds"><option value="0">Until broke</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></div>
               <div class="field" data-g="bj" data-f="blind"><label>Bet limits up every</label><select id="sBlind"><option value="3">3 rounds</option><option value="5">5 rounds</option><option value="10">10 rounds</option></select></div>
+              <div class="field" data-g="rl"><label>Wheel</label><select id="sWheel"><option value="european">European (one zero)</option><option value="american">American (0 and 00)</option></select></div>
               <div class="field" data-g="pk"><label>Small blind</label><div class="inline"><input id="sSb" type="number" min="1" step="1"></div></div>
               <div class="field" data-g="pk"><label>Computer players</label><select id="sBots"><option value="0">None</option><option value="1">1 bot</option><option value="2">2 bots</option><option value="3">3 bots</option><option value="4">4 bots</option><option value="5">5 bots</option></select></div>
               <div class="field" data-g="pk"><label>Blinds up every</label><select id="sLevel"><option value="0">Never</option><option value="5">5 hands</option><option value="10">10 hands</option><option value="20">20 hands</option></select></div>
-              <div class="field" data-g="bj"><label>Bet timer</label><select id="sBetTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
-              <div class="field"><label>Action timer</label><select id="sActTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
+              <div class="field" data-g="bj rl cr"><label>Bet timer</label><select id="sBetTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
+              <div class="field" data-g="bj pk"><label>Action timer</label><select id="sActTime"><option value="0">Off</option><option value="15">15s</option><option value="30">30s</option><option value="60">60s</option></select></div>
             </div>
             <div class="open-row hidden" id="openRow"><button class="btn primary big" id="openBtn" type="button"></button></div>
             <div class="lobby-foot" id="lobbyFoot"></div>
@@ -210,6 +217,7 @@
 <script src="/icons.js"></script>
 <script src="/components/card-shoe/card-shoe.js"></script>
 <script src="/components/discard-tray/discard-tray.js"></script>
+<script src="/arcade.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
