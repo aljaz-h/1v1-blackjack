@@ -1246,3 +1246,34 @@ body[data-game="mines"] [data-g]:not([data-g~="ar"]):not([data-g~="mn"]){display
 
 .mn-ctl.busy .chips,.mn-ctl.busy .pl-fields,.mn-ctl.busy .seg{display:none}
 @media (max-width:640px){.mn-grid{width:min(100%,28vh);flex:none}.mn-main{gap:8px;justify-content:flex-start}.mn-main{flex-direction:column}.mn-info{grid-template-columns:repeat(4,1fr)}}
+
+/* =====================================================================
+   casino lobby
+   ===================================================================== */
+.hub{position:fixed;inset:0;overflow-y:auto;background:radial-gradient(1200px 600px at 50% -10%,rgba(139,92,246,.14),transparent),var(--bg);z-index:5}
+.hub.hidden{display:none}
+.hub-top{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(23,24,26,.85);backdrop-filter:blur(8px);z-index:2}
+.hub-me{font-weight:700;color:var(--dim)}
+.hub-main{max-width:1100px;margin:0 auto;padding:26px 20px 60px}
+.hub-main h1{margin:0 0 6px;font-size:28px}
+.hub-sub{margin:0 0 18px;color:var(--dim);max-width:640px}
+.hub-private{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 16px;border-radius:16px;background:var(--panel);border:1px solid var(--line);margin-bottom:18px}
+.hub-private small{display:block;color:var(--dim);margin-top:2px}
+.hp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.hp-or{color:var(--dim);font-size:12px}
+.hp-row input{width:150px;padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line2);color:var(--txt);font:inherit;font-weight:600}
+.hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.hg{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.hg-h{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.hg-h small{display:block;color:var(--dim);font-size:12px}
+.hg-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--panel2);color:#a78bfa;flex:none}
+.hg-ic svg{width:22px;height:22px}
+.ht{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+.ht.on{border-color:#4c3a8a}
+.ht-n{font-weight:700;font-size:13px;width:58px;flex:none}
+.ht-i{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.ht-s{font-size:12px;font-weight:700}.ht.on .ht-s{color:#4ade80}
+.ht-i small{color:var(--dim);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ht-c{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.hub-err{color:#f87171;margin-top:12px;min-height:18px}
+@media (max-width:640px){.hub-top{padding:10px 12px}.hub-main{padding:18px 12px 40px}.hub-main h1{font-size:22px}.hub-grid{grid-template-columns:1fr}}

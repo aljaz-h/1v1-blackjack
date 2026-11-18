@@ -69,6 +69,7 @@ const server = http.createServer((req, res) => {
     if (pathname === '/api/act') return h.act(req, res);
     if (pathname === '/api/state') return h.state(req, res);
     if (pathname === '/api/stream') return h.stream(req, res);
+    if (pathname === '/api/tables') return h.tables(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
     serveStatic(req, res, pathname);
   } catch (e) {

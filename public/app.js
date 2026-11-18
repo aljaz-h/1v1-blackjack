@@ -30,7 +30,7 @@ const MODES = {
   holdem: { label: "Texas Hold'em", icon: 'spade', desc: "2–6 players. Two hole cards each, five on the board, best five-card hand wins. Fold, call or raise; run out of chips and you are out." },
   roulette: { label: 'Roulette', icon: 'dices', desc: 'A shared wheel. Place chips on numbers, colours, dozens and more, lock in, and watch the ball. Play on until you are broke or the limit hits.' },
   crash: { label: 'Crash', icon: 'rocket', desc: 'A multiplier climbs until it crashes. Bet, then cash out before it goes. Set an auto cash-out if you like.' },
-  plinko: { label: 'Plinko', icon: 'triangle', desc: 'Drop balls down a peg board. Pick the rows and the risk; the slot it lands in sets the payout. Drop as often as you like.' },
+  plinko: { label: 'Plinko', icon: 'circle', desc: 'Drop balls down a peg board. Pick the rows and the risk; the slot it lands in sets the payout. Drop as often as you like.' },
   dice: { label: 'Dice', icon: 'dices', desc: 'Pick a target and roll over or under it. The lower the win chance, the bigger the payout.' },
   mines: { label: 'Mines', icon: 'gem', desc: 'Reveal tiles on a 5×5 board without hitting a mine. Every safe tile raises your payout; cash out any time.' },
 };
@@ -318,7 +318,6 @@ function showLogin(msg) {
   appEl.classList.add('hidden'); loginEl.classList.remove('hidden');
   $('#loginErr').textContent = msg || '';
   $('#inName').value = S.name || '';
-  $('#inRoom').value = new URLSearchParams(location.search).get('room') || LS.get('bj.room') || '';
   $('#inPass').value = '';
   seedLoginBg();
   setStep('pass');
@@ -389,10 +388,10 @@ $('#loginForm').addEventListener('submit', async (e) => {
     if (S.step === 'pass') { await post('/api/login', { check: true, password: $('#inPass').value }); setStep('user'); return; }
     const r = await post('/api/login', { name: $('#inName').value, password: $('#inPass').value, id: S.id });
     S.token = r.token; S.id = r.id; S.name = r.name;
-    S.room = ($('#inRoom').value || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
-    LS.set('bj.token', S.token); LS.set('bj.id', S.id); LS.set('bj.name', S.name); LS.set('bj.room', S.room === 'main' ? '' : S.room);
+    LS.set('bj.token', S.token); LS.set('bj.id', S.id); LS.set('bj.name', S.name);
     sfx.unlock();
-    await enter();
+    const inv = new URLSearchParams(location.search).get('room');
+    if (inv) { S.room = cleanRoomId(inv); await enter(); } else showHub();
   } catch (err) {
     $('#loginErr').textContent = err.message;
     if (S.step === 'user' && err.status === 401) setStep('pass');
@@ -400,23 +399,25 @@ $('#loginForm').addEventListener('submit', async (e) => {
   } finally { btn.disabled = false; $('#loginSpin').classList.add('hidden'); $('#loginTxt').textContent = S.step === 'pass' ? 'Continue' : 'Enter the casino'; }
 });
 
+const cleanRoomId = (r) => String(r || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
 async function enter() {
   S.gen++;
+  hubStop();
   S.view = null; S.instant = true; S.sig = {};
   $('#msgs').innerHTML = ''; S.chatLast = 0;
   try {
     const r = await post('/api/act', { room: S.room, type: 'join' });
-    loginEl.classList.add('hidden'); appEl.classList.remove('hidden');
+    loginEl.classList.add('hidden'); $('#hub').classList.add('hidden'); appEl.classList.remove('hidden');
     $('#meName').textContent = S.name; refreshMe();
-    $('#roomName').textContent = S.room;
+    $('#roomName').textContent = tableName(S.room);
     soundIcon();
-    history.replaceState(null, '', S.room === 'main' ? location.pathname : `?room=${S.room}`);
+    history.replaceState(null, '', `?room=${S.room}`);
     applyView(r.view);
     streamLoop(S.gen);
     const sp = loadProf(); if (sp) act('profile', sp);
   } catch (e) {
-    if (e.status === 401) { S.token = ''; LS.del('bj.token'); }
-    showLogin(e.status === 401 ? '' : e.message);
+    if (e.status === 401) { S.token = ''; LS.del('bj.token'); showLogin(''); throw e; }
+    showHub(e.message);
     throw e;
   }
 }
@@ -426,7 +427,16 @@ async function logout(msg) {
   if (S.ac) S.ac.abort();
   S.token = ''; LS.del('bj.token');
   S.view = null; setConn('off');
+  hubStop();
   showLogin(msg);
+}
+
+// back to the casino lobby (the table is left, the sign-in stays)
+function leaveTable() {
+  S.gen++;
+  if (S.ac) S.ac.abort();
+  S.view = null; setConn('off');
+  showHub();
 }
 
 $('#logoutBtn').addEventListener('click', async () => {
@@ -437,7 +447,7 @@ $('#logoutBtn').addEventListener('click', async () => {
       await act('forfeit');
     } else if (v.phase === 'lobby' || v.phase === 'over') await act('stand');
   }
-  logout('');
+  leaveTable();
 });
 $('#insYes').addEventListener('click', () => act('insure', S.view && S.view.insYou && S.view.insYou.even ? { take: true } : { amount: S.view && S.view.insYou ? S.view.insYou.max : 0 }));
 $('#insNo').addEventListener('click', () => act('insure', { take: false, amount: 0 }));
@@ -1484,7 +1494,7 @@ function refreshMe() { const el = $('#meAvatar'); if (el) setAvatar(el, S.name, 
 
 function render(v, prev) {
   syncProfiles(v);
-  $('#roomName').textContent = v.room;
+  $('#roomName').textContent = tableName(v.room);
   // transitions
   if (prev && !S.instant) {
     if ((isPk(v) ? v.poker.legal && !(prev.poker && prev.poker.legal) : v.legal && !prev.legal)) { sfx.turn(); if (document.hidden) document.title = '🔔 Your move · Degen Casino'; }
@@ -1600,13 +1610,84 @@ addEventListener('keydown', (e) => {
   }
 });
 
+/* =====================================================================
+   casino lobby: house tables per game, private tables, join by code
+   ===================================================================== */
+const HUB_GAMES = [
+  { id: 'blackjack', name: 'Degen 21', icon: 'spade', blurb: 'Blackjack against the dealer, duel or up to six seats.' },
+  { id: 'poker', name: 'Degen Poker', icon: 'crown', blurb: "Texas Hold'em, with bots to fill the table." },
+  { id: 'roulette', name: 'Roulette', icon: 'dices', blurb: 'One shared wheel, every bet on the table.' },
+  { id: 'crash', name: 'Crash', icon: 'rocket', blurb: 'Cash out before the multiplier crashes.' },
+  { id: 'plinko', name: 'Plinko', icon: 'circle', blurb: 'Drop balls down the pegs, pick your risk.' },
+  { id: 'dice', name: 'Dice', icon: 'dices', blurb: 'Roll over or under your target.' },
+  { id: 'mines', name: 'Mines', icon: 'gem', blurb: 'Clear tiles, dodge the mines, cash out.' },
+];
+const tableName = (room) => {
+  const m = /^([a-z]+)-(\d)$/.exec(room || '');
+  const g = m && HUB_GAMES.find((x) => x.id === m[1]);
+  return g ? `${g.name} · Table ${m[2]}` : room;
+};
+let hubTimer = 0, hubGen = 0;
+function hubStop() { clearTimeout(hubTimer); hubTimer = 0; hubGen++; }
+function showHub(msg) {
+  hubStop();
+  loginEl.classList.add('hidden'); appEl.classList.add('hidden'); $('#hub').classList.remove('hidden');
+  $('#hubMe').textContent = S.name;
+  $('#hubErr').textContent = msg || '';
+  history.replaceState(null, '', location.pathname);
+  document.title = 'Degen Casino';
+  hydrateIcons();
+  const gen = hubGen;
+  const poll = async () => {
+    try {
+      const r = await fetch('/api/tables', { headers: { Authorization: 'Bearer ' + S.token }, cache: 'no-store' });
+      if (r.status === 401) return logout('Session expired. Sign in again.');
+      if (gen !== hubGen) return;
+      if (r.ok) renderHub((await r.json()).tables);
+    } catch { /* offline: try again */ }
+    if (gen === hubGen) hubTimer = setTimeout(poll, 3000);
+  };
+  poll();
+}
+function renderHub(tables) {
+  const sig = JSON.stringify(tables.map((t) => [t.id, t.active, t.phase, t.seated, t.open, t.over]));
+  if (S.hubSig === sig) return;
+  S.hubSig = sig;
+  $('#hubGrid').innerHTML = HUB_GAMES.map((g) => {
+    const rows = tables.filter((t) => t.game === g.id).sort((a, b) => a.n - b.n).map((t) => {
+      const seated = t.seated || [], full = t.active && seated.length >= t.max;
+      const status = !t.active ? 'Empty' : t.over || t.phase === 'over' ? 'Finished' : t.phase !== 'lobby' ? 'In play' : t.open ? 'Waiting for players' : 'Being set up';
+      const who = seated.length ? esc(seated.slice(0, 3).join(', ')) + (seated.length > 3 ? ` +${seated.length - 3}` : '') : '';
+      return `<div class="ht${t.active ? ' on' : ''}"><div class="ht-n">Table ${t.n}</div><div class="ht-i"><span class="ht-s">${status}${t.active && t.label && g.id === 'blackjack' ? ' · ' + esc(t.label) : ''}</span>${who ? `<small>${who}</small>` : '<small>Be the first to sit down</small>'}</div><div class="ht-c">${t.active ? `${seated.length}/${t.max}` : ''}</div><button class="btn sm${t.active ? '' : ' primary'}" data-room="${t.id}">${!t.active ? 'Open' : full ? 'Watch' : 'Join'}</button></div>`;
+    }).join('');
+    return `<section class="hg"><div class="hg-h"><span class="hg-ic">${ic(g.icon)}</span><div><b>${g.name}</b><small>${g.blurb}</small></div></div>${rows}</section>`;
+  }).join('');
+}
+async function joinRoom(room) {
+  S.room = cleanRoomId(room);
+  if (!S.room) return;
+  hubStop();
+  try { await enter(); } catch { /* enter() already returned to the lobby with the reason */ }
+}
+$('#hubGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-room]'); if (b) joinRoom(b.dataset.room); });
+$('#hubCreate').addEventListener('click', () => {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  joinRoom(Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join(''));
+});
+const hubJoinCode = () => { const c = cleanRoomId($('#hubCode').value); if (c) joinRoom(c); else $('#hubCode').focus(); };
+$('#hubJoin').addEventListener('click', hubJoinCode);
+$('#hubCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') hubJoinCode(); });
+$('#hubOut').addEventListener('click', () => logout(''));
+
 /* boot */
 hydrateIcons();
 soundIcon();
 (async () => {
   const q = new URLSearchParams(location.search).get('room');
-  S.room = (q || LS.get('bj.room') || 'main').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'main';
-  if (S.token) { try { await enter(); return; } catch { /* fall through to login */ } }
+  if (S.token) {
+    if (q) { S.room = cleanRoomId(q); try { await enter(); return; } catch { return; } }
+    showHub(); return;
+  }
   showLogin('');
 })();
 })();

@@ -7,7 +7,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const PW = 'testpass';
 
 let fake = null;
-const extra = {};
+const extra = { MAX_ROOMS: '11' };
 if (process.env.E2E_REDIS) {
   fake = require('./fake-upstash').start(PORT + 100);
   Object.assign(extra, { UPSTASH_REDIS_REST_URL: `http://127.0.0.1:${PORT + 100}`, UPSTASH_REDIS_REST_TOKEN: 'tok', POLL_MS: '150' });
@@ -158,6 +158,22 @@ class Client {
   assert.strictEqual(total, 1200, 'chips conserved');
   console.log(`e2e poker ok: ${a.view.round} hands in ${((Date.now() - t2) / 1000).toFixed(1)}s`, a.view.over.ranking.map((r) => `${r.place}.${r.name}:${r.balance}`).join(' '));
   bots.forEach((x) => (x.onview = null));
+  /* ---- lobby: house tables are listed, created lazily with the game locked to the table ---- */
+  const tl = async () => (await (await fetch(BASE + '/api/tables', { headers: { Authorization: 'Bearer ' + a.token } })).json()).tables;
+  let tb = await tl();
+  assert.strictEqual(tb.length, 21);
+  assert.ok(tb.every((t) => !t.active), 'all house tables start empty');
+  assert.strictEqual((await fetch(BASE + '/api/tables')).status, 401);
+  const j = await post('/api/act', { room: 'poker-2', type: 'join' }, a.token);
+  assert.strictEqual(j.status, 200);
+  assert.strictEqual(j.view.settings.game, 'poker', 'game locked to the table');
+  const st2 = await post('/api/act', { room: 'poker-2', type: 'settings', settings: { game: 'roulette' } }, a.token);
+  assert.strictEqual(st2.view.settings.game, 'poker', 'host cannot change the game of a house table');
+  tb = await tl();
+  const p2 = tb.find((t) => t.id === 'poker-2');
+  assert.ok(p2.active && p2.game === 'poker' && p2.phase === 'lobby' && p2.max === 6, JSON.stringify(p2));
+  assert.strictEqual(tb.find((t) => t.id === 'poker-1').active, false);
+  console.log('e2e lobby ok');
   /* ---- room cap: 'e2e' already exists, so 9 more fit and the 10th new one is refused ---- */
   const cap = [];
   for (let i = 0; i < 10; i++) cap.push((await post('/api/act', { room: 'cap' + i, type: 'join' }, a.token)).status);

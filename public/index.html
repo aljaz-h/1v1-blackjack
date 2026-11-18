@@ -24,12 +24,31 @@
     <div id="stepUser" class="hidden">
       <div class="unlocked"><span data-ic="check"></span>Password accepted <button type="button" class="linkbtn" id="backPass">Change</button></div>
       <label>Name<input id="inName" maxlength="16" placeholder="Pick a handle"></label>
-      <label><span>Room <em class="opt">optional</em></span><input id="inRoom" maxlength="20" placeholder="main"></label>
     </div>
     <button class="btn primary big" id="loginBtn" type="submit"><span id="loginTxt">Continue</span><span id="loginSpin" class="spin hidden" data-ic="sp-180-ring-with-bg"></span></button>
     <div class="err" id="loginErr" role="alert"></div>
     <p class="fine">18+ in spirit only. Play chips, no real money.</p>
   </form>
+</div>
+
+<!-- ============ CASINO LOBBY ============ -->
+<div id="hub" class="hub hidden">
+  <header class="hub-top">
+    <div class="logo sm"><svg viewBox="0 0 32 32" width="26" height="26"><rect x="3" y="2" width="26" height="28" rx="6" fill="#38bdf8"/><path d="M16 8c-3 4-7 6-7 10 0 2.3 1.8 4 4 4 1.2 0 2.3-.5 3-1.4-.1 1.6-.7 3-1.8 4.4h4.6c-1.1-1.4-1.7-2.8-1.8-4.4.7.9 1.8 1.4 3 1.4 2.2 0 4-1.7 4-4 0-4-4-6-7-10z" fill="#0b1120"/></svg><span>DEGEN <b>CASINO</b></span></div>
+    <div class="grow"></div>
+    <span class="hub-me" id="hubMe"></span>
+    <button class="btn ghost sm" id="hubOut" type="button"><span data-ic="log-out"></span><span class="lbl">Sign out</span></button>
+  </header>
+  <main class="hub-main">
+    <h1>Pick a table</h1>
+    <p class="hub-sub">A table opens when the first player walks up to it and closes after an hour with nobody playing. Chips are play money.</p>
+    <section class="hub-private">
+      <div><b>Private table</b><small>Play with friends: make a table with its own code, or enter one you were given.</small></div>
+      <div class="hp-row"><button class="btn primary" id="hubCreate" type="button">Create private table</button><span class="hp-or">or</span><input id="hubCode" maxlength="20" placeholder="Table code" autocomplete="off" spellcheck="false"><button class="btn" id="hubJoin" type="button">Join</button></div>
+    </section>
+    <div class="hub-grid" id="hubGrid"></div>
+    <div class="hub-err" id="hubErr" role="alert"></div>
+  </main>
 </div>
 
 <!-- ============ APP ============ -->
@@ -117,7 +136,7 @@
             <div class="lobby-seats arc" id="lobbySeats"></div>
             <div class="lobby-mine hidden" id="lobbyMine"></div>
             <div class="settings" id="settings" data-mode="duel">
-              <div class="field wide"><label>Game</label><div class="modes games" id="gameSel"><button type="button" data-game="blackjack"><span data-ic="spade"></span><span>Degen 21</span><small>Blackjack</small></button><button type="button" data-game="poker"><span data-ic="dices"></span><span>Degen Poker</span><small>Texas Hold'em</small></button><button type="button" data-game="roulette"><span data-ic="circle"></span><span>Roulette</span><small>Spin the wheel</small></button><button type="button" data-game="crash"><span data-ic="rocket"></span><span>Crash</span><small>Cash out in time</small></button><button type="button" data-game="plinko"><span data-ic="triangle"></span><span>Plinko</span><small>Drop the ball</small></button><button type="button" data-game="dice"><span data-ic="dices"></span><span>Dice</span><small>Over or under</small></button><button type="button" data-game="mines"><span data-ic="gem"></span><span>Mines</span><small>Dodge the bombs</small></button></div></div>
+              <div class="field wide"><label>Game</label><div class="modes games" id="gameSel"><button type="button" data-game="blackjack"><span data-ic="spade"></span><span>Degen 21</span><small>Blackjack</small></button><button type="button" data-game="poker"><span data-ic="dices"></span><span>Degen Poker</span><small>Texas Hold'em</small></button><button type="button" data-game="roulette"><span data-ic="circle"></span><span>Roulette</span><small>Spin the wheel</small></button><button type="button" data-game="crash"><span data-ic="rocket"></span><span>Crash</span><small>Cash out in time</small></button><button type="button" data-game="plinko"><span data-ic="circle"></span><span>Plinko</span><small>Drop the ball</small></button><button type="button" data-game="dice"><span data-ic="dices"></span><span>Dice</span><small>Over or under</small></button><button type="button" data-game="mines"><span data-ic="gem"></span><span>Mines</span><small>Dodge the bombs</small></button></div></div>
               <div class="field wide" data-g="bj"><label>Game mode</label><div class="modes" id="modeSel"></div><div class="mode-desc" id="modeDesc"></div></div>
               <div class="field wide"><label class="switch"><input type="checkbox" id="sBlitz"><span class="sw-track"></span><span class="sw-txt"><b>Blitz</b><small>8s to bet and act, fast rounds. Works with every mode.</small></span></label></div>
               <div class="field wide"><label>Starting balance</label>
