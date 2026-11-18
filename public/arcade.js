@@ -250,18 +250,32 @@ const roulette = {
   },
   frame(v, now) {
     const a = v.arcade;
-    // the wheel turns slowly all the time; the ball only shows once the spin starts
-    const W = (now / 1000) * 18;
-    this.rot.setAttribute('transform', `rotate(${W.toFixed(2)})`);
     const order = a.wheel === 'american' ? US : EU, N = order.length, step = 360 / N;
-    if (a.stage === 'bet' || a.n == null) { this.ball.setAttribute('opacity', 0); return; }
-    const p = clamp((now - a.spinAt) / a.spinMs, 0, 1), idx = order.indexOf(a.n), target = idx * step;
-    const e = 1 - Math.pow(1 - p, 2.4);
-    const rel = target - 360 * 6 * (1 - e);
+    const spinning = a.stage !== 'bet' && a.n != null;
+    $('#arStage .rl').classList.toggle('big', spinning); // bigger wheel, smaller betting table while it spins
+    if (!spinning) {
+      // idle: the wheel turns slowly, carrying on from wherever the last spin left it
+      if (this.restAt == null) { this.restAt = now; this.rest = this.W || 0; }
+      this.W = this.rest + ((now - this.restAt) / 1000) * 18;
+      this.rot.setAttribute('transform', `rotate(${this.W.toFixed(2)})`);
+      this.ball.setAttribute('opacity', 0);
+      this.spinKey = null;
+      return;
+    }
+    this.restAt = null;
+    if (this.spinKey !== a.spinAt) { this.spinKey = a.spinAt; this.w0 = this.W || 0; }
+    const p = clamp((now - a.spinAt) / a.spinMs, 0, 1), target = order.indexOf(a.n) * step;
+    // the wheel spins up, then eases to a stop with the winning pocket under the ball at the top
+    const w1 = this.w0 + 1080 + ((((-target - this.w0 - 1080) % 360) + 360) % 360);
+    this.W = this.w0 + (w1 - this.w0) * (1 - Math.pow(1 - p, 3));
+    this.rot.setAttribute('transform', `rotate(${this.W.toFixed(2)})`);
+    // the ball runs the other way, drops inward and settles in the pocket at the top
+    const eb = 1 - Math.pow(1 - p, 2.4);
+    const th = -360 * 6 * (1 - eb);
     let r = 94;
     if (p > 0.5) { const q = clamp((p - 0.5) / 0.38, 0, 1); r = 94 - 24 * (q * q * (3 - 2 * q)); }
-    if (p > 0.88) r += 3.2 * Math.sin((p - 0.88) * 60) * (1 - p) * 8;
-    const ang = ((W + rel - 90) * Math.PI) / 180;
+    if (p > 0.88 && p < 1) r += 3.2 * Math.sin((p - 0.88) * 60) * (1 - p) * 8;
+    const ang = ((th - 90) * Math.PI) / 180;
     this.ball.setAttribute('cx', (r * Math.cos(ang)).toFixed(2));
     this.ball.setAttribute('cy', (r * Math.sin(ang)).toFixed(2));
     this.ball.setAttribute('opacity', 1);
@@ -395,7 +409,7 @@ const plinko = {
     this.cv = $('#plCv'); this.g = this.cv.getContext('2d');
     this.rows = +C.LS.get('bj.pl.rows') || 12; this.risk = C.LS.get('bj.pl.risk') || 'medium'; this.amt = 0;
     if (!v.arcade.tables[this.rows]) this.rows = 12;
-    $('#plRows').innerHTML = [8, 12, 16].map((r) => `<button type="button" data-r="${r}">${r} rows</button>`).join('');
+    $('#plRows').innerHTML = [8, 12, 16].map((r) => `<button type="button" data-r="${r}">${r}</button>`).join('');
     $('#plRisk').innerHTML = ['low', 'medium', 'high'].map((r) => `<button type="button" data-k="${r}">${r[0].toUpperCase() + r.slice(1)}</button>`).join('');
     $('#plRows').addEventListener('click', (e) => { const b = e.target.closest('[data-r]'); if (b) { this.rows = +b.dataset.r; C.LS.set('bj.pl.rows', this.rows); this.refresh(); } });
     $('#plRisk').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) { this.risk = b.dataset.k; C.LS.set('bj.pl.risk', this.risk); this.refresh(); } });
@@ -420,7 +434,7 @@ const plinko = {
     $$('#plRisk button').forEach((b) => b.classList.toggle('on', b.dataset.k === this.risk));
     $$('#plCtl .mini-row .btn, #plChips .chip, #plAmt').forEach((b) => (b.disabled = !ok));
     $('#plDrop').disabled = !ok || this.amt < v.limits.min || this.amt > cap;
-    $('#plDrop').innerHTML = `${C.ic('circle')}Drop ${C.fmt(this.amt || 0)}<kbd>Space</kbd>`;
+    $('#plDrop').innerHTML = `${C.ic('coins')}Drop ${C.fmt(this.amt || 0)}<kbd>Space</kbd>`;
   },
   update(v) {
     const a = v.arcade, me = mine(v);
@@ -458,16 +472,18 @@ const plinko = {
     const px = (row, j) => cx + (j - row / 2) * sp, py = (row) => y0 + row * rowH;
     // pegs
     g.fillStyle = 'rgba(255,255,255,.75)';
-    for (let r = 0; r < R; r++) for (let j = 0; j <= r; j++) { g.beginPath(); g.arc(px(r, j), py(r), Math.max(1.6, sp * 0.085), 0, 6.3); g.fill(); }
+    for (let r = 0; r < R; r++) for (let j = 0; j <= r; j++) { g.beginPath(); g.arc(px(r, j), py(r), Math.max(1.4, sp * 0.06), 0, 6.3); g.fill(); }
     // slots
     const mx = Math.max(...tbl), fl = this.flash;
-    const col = (m) => { const t = clamp(Math.log(m + 0.001) / Math.log(mx + 1) + 0.15, 0, 1); return m < 1 ? `hsl(215 25% ${28 + m * 14}%)` : `hsl(${50 - 50 * t} 85% ${52 - 6 * t}%)`; };
+    // edges red, then orange, centre yellow (like the real thing)
+    const col = (m) => { const t = m < 1 ? 0 : clamp(Math.log(m) / Math.log(mx), 0, 1); return `hsl(${48 - 46 * t} 92% ${56 - 8 * t}%)`; };
     for (let j = 0; j <= R; j++) {
       const x = px(R, j) , y = py(R) + 6, bw = sp * 0.88;
       let lift = 0;
       for (const f of fl) if (f.rows === R && f.risk === this.risk && f.slot === j) { const k = (performance.now() - f.at) / 700; if (k < 1) lift = 6 * Math.sin(k * Math.PI); }
+      g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.roundRect ? g.roundRect(x - bw / 2, y - lift + 3, bw, slotH, 5) : g.rect(x - bw / 2, y - lift + 3, bw, slotH); g.fill();
       g.fillStyle = col(tbl[j]); g.beginPath(); g.roundRect ? g.roundRect(x - bw / 2, y - lift, bw, slotH, 5) : g.rect(x - bw / 2, y - lift, bw, slotH); g.fill();
-      g.fillStyle = tbl[j] < 1 ? '#cbd5e1' : '#111'; g.font = `700 ${Math.max(8, Math.min(12, sp * 0.4))}px Geist, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#1a1205'; g.font = `700 ${Math.max(8, Math.min(12, sp * 0.4))}px Geist, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(tbl[j] >= 100 ? Math.round(tbl[j]) : tbl[j], x, y - lift + slotH / 2 + 1);
     }
     this.flash = fl.filter((f) => performance.now() - f.at < 800);
@@ -576,10 +592,11 @@ const dice = {
    ===================================================================== */
 const minesMult = (m, k) => { let p = 1; for (let i = 0; i < k; i++) p *= (25 - i) / (25 - m - i); return k === 0 ? 1 : Math.floor(p * 0.99 * 10000) / 10000; };
 const fmtM = (x) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2)) + '×';
+const GEM = '<svg viewBox="0 0 32 32" aria-hidden="true"><polygon points="16,3 27,12 16,29 5,12" fill="#16a34a"/><polygon points="16,3 27,12 5,12" fill="#4ade80"/><polygon points="16,3 21,12 16,29 11,12" fill="#22c55e"/><polygon points="9,8 14,6 12,11" fill="#fff" opacity=".55"/></svg>';
+const BOMB = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20 8c2-3 4-3 6-2" fill="none" stroke="#d6b25a" stroke-width="1.6" stroke-linecap="round"/><circle cx="27" cy="5.5" r="2" fill="#fbbf24"/><circle cx="14" cy="19" r="10" fill="#4c1d95"/><circle cx="14" cy="19" r="10" fill="none" stroke="#a78bfa" stroke-width="1"/><circle cx="10.5" cy="15.5" r="2.6" fill="#fff" opacity=".35"/><rect x="11" y="7.5" width="6" height="3.5" rx="1" fill="#6b7280"/></svg>';
 const mines = {
   build() {
-    $('#arStage').innerHTML = `<div class="mn"><div class="pl-recent" id="mnRecent"></div><div class="mn-main"><div class="mn-grid" id="mnGrid"></div><div class="mn-info" id="mnInfo"></div></div></div>
-      <div class="ar-ctl mn-ctl" id="mnCtl"><div class="chips" id="mnChips"></div><div class="pl-fields"><label>Bet<input id="mnAmt" type="number" min="1" step="1" inputmode="numeric"></label><label>Mines<input id="mnCount" type="number" min="1" max="24" step="1" inputmode="numeric"></label><div class="mini-row"><button class="btn mini" id="mnMin">Min</button><button class="btn mini" id="mnHalf">½</button><button class="btn mini" id="mnDbl">2×</button><button class="btn mini" id="mnMax">Max</button></div></div><div class="seg" id="mnPre">${[1, 3, 5, 10, 24].map((n) => `<button type="button" data-n="${n}">${n}</button>`).join('')}</div><div class="cr-btns"><button class="btn primary big" id="mnGo"></button></div></div>`;
+    $('#arStage').innerHTML = `<div class="mn"><div class="pl-recent" id="mnRecent"></div><div class="mn-main"><div class="ar-ctl mn-ctl" id="mnCtl"><div class="chips" id="mnChips"></div><div class="pl-fields"><label>Bet<input id="mnAmt" type="number" min="1" step="1" inputmode="numeric"></label><label>Mines<input id="mnCount" type="number" min="1" max="24" step="1" inputmode="numeric"></label><div class="mini-row"><button class="btn mini" id="mnMin">Min</button><button class="btn mini" id="mnHalf">½</button><button class="btn mini" id="mnDbl">2×</button><button class="btn mini" id="mnMax">Max</button></div></div><div class="seg" id="mnPre">${[1, 3, 5, 10, 24].map((n) => `<button type="button" data-n="${n}">${n}</button>`).join('')}</div><div class="cr-btns"><button class="btn primary big" id="mnGo"></button></div></div><div class="mn-board"><div class="mn-info" id="mnInfo"></div><div class="mn-wrap"><div class="mn-grid" id="mnGrid"></div><div class="mn-pop" id="mnPop"></div></div></div></div></div>`;
     const g = $('#mnGrid');
     for (let i = 0; i < 25; i++) { const b = document.createElement('button'); b.type = 'button'; b.className = 'mt'; b.dataset.i = i; g.appendChild(b); }
     this.count = Math.min(24, Math.max(1, +C.LS.get('bj.mn.m') || 3)); this.amt = 0; this.init = false; this.lastRecent = 0; this.prevK = 0; this.prevState = '';
@@ -628,7 +645,9 @@ const mines = {
     tiles.forEach((t, i) => {
       const isRev = rev.has(i), isMine = mn.has(i), hit = gm && gm.state === 'bust' && gm.hit === i;
       t.className = 'mt' + (isRev && !isMine ? ' gem' : '') + (isMine ? (hit ? ' bomb hit' : ' bomb') : '') + (isRev || isMine ? ' open' : '');
-      t.textContent = isMine ? '✹' : isRev ? '◆' : '';
+      const over = gm && gm.state; // game finished: show what was hidden
+      if (over && !isRev && !isMine) t.classList.add('ghost');
+      t.innerHTML = isMine ? BOMB : (isRev || (over && !isMine)) ? GEM : '';
       t.disabled = !(active && playing(v) && !isRev) || !!v.paused;
     });
     // sound + info
@@ -637,13 +656,20 @@ const mines = {
       if (gm.state && gm.state !== this.prevState) { if (gm.state === 'bust') C.sfx.lose(); else C.sfx.win(); }
       this.prevK = active ? gm.rev.length : 0; this.prevState = gm.state || '';
     } else { this.prevK = 0; this.prevState = ''; }
-    const info = $('#mnInfo');
+    const info = $('#mnInfo'), pop = $('#mnPop');
+    const box = (l, val, c) => `<div${c ? ` class="${c}"` : ''}><small>${l}</small><b>${val}</b></div>`;
     if (active) {
       const left = 25 - gm.m - gm.k, next = left > 0 ? minesMult(gm.m, gm.k + 1) : 0;
-      info.innerHTML = `<div><small>Current</small><b>${fmtM(gm.mult)}</b></div><div><small>Next tile</small><b>${next ? fmtM(next) : '—'}</b></div><div><small>Mines</small><b>${gm.m}</b></div><div><small>Safe left</small><b>${left}</b></div>`;
+      info.innerHTML = box('Bet', C.fmt(gm.amt)) + box('Multiplier', fmtM(gm.mult), 'good') + box('Next tile', next ? fmtM(next) : '—') + box('Payout', C.fmt(Math.floor(gm.amt * gm.mult)));
     } else if (gm && gm.state) {
-      info.innerHTML = gm.state === 'bust' ? `<div class="bad"><small>Boom</small><b>−${C.fmt(gm.amt)}</b></div>` : `<div class="good"><small>Cashed out ${fmtM(gm.mult)}</small><b>+${C.fmt(gm.pay - gm.amt)}</b></div>`;
-    } else info.innerHTML = '<div><small>Set your bet and mines</small><b>then Start</b></div>';
+      info.innerHTML = box('Bet', C.fmt(gm.amt)) + box('Multiplier', gm.state === 'bust' ? '0×' : fmtM(gm.mult), gm.state === 'bust' ? 'bad' : 'good') + box('Mines', gm.m) + box('Payout', gm.state === 'bust' ? '0' : C.fmt(gm.pay), gm.state === 'bust' ? 'bad' : 'good');
+    } else info.innerHTML = box('Bet', C.fmt(this.amt || 0)) + box('Multiplier', '1×') + box('Mines', this.count) + box('Payout', '0');
+    const popSig = gm && gm.state ? gm.state + (gm.pay || 0) + gm.k : '';
+    if (st.sig.mnp !== popSig) {
+      st.sig.mnp = popSig;
+      pop.className = 'mn-pop' + (gm && gm.state ? ' on ' + (gm.state === 'bust' ? 'bad' : 'good') : '');
+      pop.innerHTML = gm && gm.state ? (gm.state === 'bust' ? `<b>BUST</b><i></i><span>−${C.fmt(gm.amt)}</span>` : `<b>${fmtM(gm.mult)}</b><i></i><span>+${C.fmt(gm.pay - gm.amt)}</span>`) : '';
+    }
     for (const r of [...a.recent].reverse()) { if (r.id > this.lastRecent) this.lastRecent = r.id; }
     const rsig = JSON.stringify(a.recent.map((r) => r.id));
     if (st.sig.mnr !== rsig) { st.sig.mnr = rsig; $('#mnRecent').innerHTML = a.recent.map((r) => `<i class="${r.bust ? 'lo' : r.mult >= 5 ? 'hi' : 'ok'}" style="--c:${C.colorOf(r.name, r.seat)}" title="${C.esc(r.name)} ${r.net >= 0 ? '+' : '−'}${C.fmt(Math.abs(r.net))}">${r.bust ? '💥' : fmtM(r.mult)}</i>`).join(''); }

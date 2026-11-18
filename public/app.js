@@ -30,7 +30,7 @@ const MODES = {
   holdem: { label: "Texas Hold'em", icon: 'spade', desc: "2–6 players. Two hole cards each, five on the board, best five-card hand wins. Fold, call or raise; run out of chips and you are out." },
   roulette: { label: 'Roulette', icon: 'dices', desc: 'A shared wheel. Place chips on numbers, colours, dozens and more, lock in, and watch the ball. Play on until you are broke or the limit hits.' },
   crash: { label: 'Crash', icon: 'rocket', desc: 'A multiplier climbs until it crashes. Bet, then cash out before it goes. Set an auto cash-out if you like.' },
-  plinko: { label: 'Plinko', icon: 'circle', desc: 'Drop balls down a peg board. Pick the rows and the risk; the slot it lands in sets the payout. Drop as often as you like.' },
+  plinko: { label: 'Plinko', icon: 'coins', desc: 'Drop balls down a peg board. Pick the rows and the risk; the slot it lands in sets the payout. Drop as often as you like.' },
   dice: { label: 'Dice', icon: 'dices', desc: 'Pick a target and roll over or under it. The lower the win chance, the bigger the payout.' },
   mines: { label: 'Mines', icon: 'gem', desc: 'Reveal tiles on a 5×5 board without hitting a mine. Every safe tile raises your payout; cash out any time.' },
 };
@@ -323,8 +323,8 @@ function showLogin(msg) {
   setStep('pass');
 }
 // scatter of cards / blackjack hands / chip stacks / dice behind the login card, re-randomised on every visit
-function seedLoginBg() {
-  const bg = $('#loginBg'); bg.innerHTML = '';
+function seedLoginBg(target) {
+  const bg = $(target || '#loginBg'); bg.innerHTML = '';
   const small = innerWidth < 640, cols = small ? 3 : 6, rows = small ? 5 : 4;
   const R = (a, b) => a + Math.random() * (b - a), pick = (l) => l[Math.floor(Math.random() * l.length)];
   const ranks = ['A', 'K', 'Q', 'J', '10', '9', '7'], suits = ['♠', '♥', '♦', '♣'];
@@ -400,13 +400,13 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 const cleanRoomId = (r) => String(r || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
-async function enter() {
+async function enter(watch) {
   S.gen++;
   hubStop();
   S.view = null; S.instant = true; S.sig = {};
   $('#msgs').innerHTML = ''; S.chatLast = 0;
   try {
-    const r = await post('/api/act', { room: S.room, type: 'join' });
+    const r = await post('/api/act', { room: S.room, type: 'join', watch: watch ? 1 : 0 });
     loginEl.classList.add('hidden'); $('#hub').classList.add('hidden'); appEl.classList.remove('hidden');
     $('#meName').textContent = S.name; refreshMe();
     $('#roomName').textContent = tableName(S.room);
@@ -1121,10 +1121,21 @@ $('#modeSel').addEventListener('click', (e) => { const b = e.target.closest('[da
 function renderLobby(v) {
   const on = v.phase === 'lobby';
   $('#lobby').classList.toggle('on', on);
+  const houseArc = !!v.house && ARC.includes(v.settings.game);
+  $('#lobby').classList.toggle('house-arc', houseArc);
+  $('#gameSel').parentElement.classList.toggle('hidden', !!v.house);
   if (!on) return;
+  if (houseArc) {
+    $('#lobbyTitle').textContent = MODES[v.settings.game].label;
+    $('#hostLine').innerHTML = '';
+    $('#lobbyMine').classList.remove('hidden');
+    $('#lobbyMine').innerHTML = v.you.seat >= 0 ? '' : `<button class="btn primary big" data-act="sit">${ic('armchair')}Sit down &amp; play</button>`;
+    $('#lobbyFoot').textContent = MODES[v.settings.game].desc || '';
+    return;
+  }
   const seated = v.you.seat >= 0, md = v.mode, st = v.settings, isHost = v.you.host, open = v.open;
   // the host sets the table up first, then opens it; only then can anyone pick a seat
-  $('#lobbyTitle').textContent = !open && isHost ? 'Set up your table' : 'Table setup';
+  $('#lobbyTitle').textContent = v.house ? `${(HUB_GAMES.find((g) => g.id === (v.settings.game || 'blackjack')) || {}).name} table` : !open && isHost ? 'Set up your table' : 'Table setup';
   $('#hostLine').innerHTML = v.host ? `${ic('crown')}<span>Host: <b>${esc(v.host.name)}</b>${isHost ? ' (you)' : ''}${open ? '' : isHost ? '' : ' is setting up the table…'}</span>` : '';
   $('#lobbySeats').classList.toggle('hidden', !open);
   $('#settings').classList.toggle('hidden', !open && !isHost);
@@ -1267,6 +1278,12 @@ function renderOver(v) {
     : `<div class="rank-list">${rk.map((r) => { const net = r.balance - start; return `<div class="rk${r.place === 1 && o.winner >= 0 ? ' w' : ''}"><span class="pl">${r.place === 1 ? ic('crown') : place(r.place)}</span>${avatar(r.name, r.seat, 'sm')}<span class="nm"><b>${esc(r.name)}</b><small>${stat(r)}</small></span><span class="bl"><i class="coin"></i>${fmt(r.balance)}</span><span class="nt ${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}</span></div>`; }).join('')}</div>`;
   const seated = v.you.seat >= 0;
   const open = Array.from({ length: v.mode.max }, (_, i) => i).filter((i) => !v.seats[i]);
+  if (v.house && arc) {
+    $('#overCard').innerHTML = `<div class="trophy">${ic('coins')}</div><h2>${seated ? (o.reason === 'broke' ? 'Out of chips' : 'Session over') : 'Table is empty'}</h2><div style="color:var(--dim)">${MODES[mode].label} · ${v.round} ${UNIT[mode] ? UNIT[mode][0] : 'round'}${v.round === 1 ? '' : 's'}</div>
+      ${rk.length ? body : ''}<button class="btn primary big" id="playAgain">${ic('armchair')}${seated ? `Rebuy ${fmt(start)} &amp; play again` : 'Sit down &amp; play'}</button>`;
+    $('#playAgain').addEventListener('click', () => act('sit'));
+    return;
+  }
   $('#overCard').innerHTML = `<div class="trophy">${ic(o.winner >= 0 ? 'trophy' : 'handshake')}</div><h2>${title || 'Match over'}</h2><div style="color:var(--dim)">${reason} · ${v.round} ${mode === 'holdem' ? 'hand' : UNIT[mode] ? UNIT[mode][0] : 'round'}${v.round === 1 ? '' : 's'}</div>
     ${body}
     ${seated ? '<button class="btn primary big" id="backLobby">Back to lobby (rematch)</button>' : open.length ? '<div class="row" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' + open.map((i) => `<button class="btn primary" data-sit="${i}">Take seat ${i + 1}</button>`).join('') + '</div>' : '<div style="color:var(--dim)">Waiting for the players…</div>'}`;
@@ -1282,7 +1299,8 @@ function renderSide(v) {
   if (S.sig.side === sig) return;
   S.sig.side = sig;
   const lobbyish = ['lobby', 'over'].includes(v.phase), cap = lobbyish ? v.mode.max : NSEATS;
-  const idx = Array.from({ length: cap }, (_, i) => i).filter((i) => v.seats[i] || (lobbyish && v.open));
+  const drop = !!v.house && ARC.includes(v.settings.game) && !v.over; // casino tables: sit down mid-game
+  const idx = Array.from({ length: cap }, (_, i) => i).filter((i) => v.seats[i] || ((lobbyish || drop) && v.open));
   $('#sideSeats').innerHTML = !idx.length ? '<div style="color:var(--dim);font-size:12px">Table not open yet</div>' : idx.map((i) => {
     const s = v.seats[i];
     if (!s) return `<div class="sseat empty"><span class="avatar" style="--c:#2a3558;opacity:.5">?</span><div><div class="n">Seat ${i + 1}</div><div class="s">Open</div></div><button class="btn mini primary" data-sit="${i}">Sit</button></div>`;
@@ -1618,7 +1636,7 @@ const HUB_GAMES = [
   { id: 'poker', name: 'Degen Poker', icon: 'crown', blurb: "Texas Hold'em, with bots to fill the table." },
   { id: 'roulette', name: 'Roulette', icon: 'dices', blurb: 'One shared wheel, every bet on the table.' },
   { id: 'crash', name: 'Crash', icon: 'rocket', blurb: 'Cash out before the multiplier crashes.' },
-  { id: 'plinko', name: 'Plinko', icon: 'circle', blurb: 'Drop balls down the pegs, pick your risk.' },
+  { id: 'plinko', name: 'Plinko', icon: 'coins', blurb: 'Drop balls down the pegs, pick your risk.' },
   { id: 'dice', name: 'Dice', icon: 'dices', blurb: 'Roll over or under your target.' },
   { id: 'mines', name: 'Mines', icon: 'gem', blurb: 'Clear tiles, dodge the mines, cash out.' },
 ];
@@ -1637,6 +1655,7 @@ function showHub(msg) {
   history.replaceState(null, '', location.pathname);
   document.title = 'Degen Casino';
   hydrateIcons();
+  if (!$('#hubBg').firstChild) seedLoginBg('#hubBg');
   const gen = hubGen;
   const poll = async () => {
     try {
@@ -1650,26 +1669,36 @@ function showHub(msg) {
   poll();
 }
 function renderHub(tables) {
-  const sig = JSON.stringify(tables.map((t) => [t.id, t.active, t.phase, t.seated, t.open, t.over]));
+  const sig = JSON.stringify(tables.map((t) => [t.id, t.active, t.phase, t.seated, t.open, t.over, t.max]));
   if (S.hubSig === sig) return;
   S.hubSig = sig;
+  const felt = (n, seated) => {
+    n = Math.max(1, Math.min(6, n || 6));
+    return `<div class="ht-felt">${Array.from({ length: n }, (_, i) => {
+      const a = Math.PI * 2 * i / n - Math.PI / 2, x = 50 + 47 * Math.cos(a), y = 50 + 52 * Math.sin(a);
+      const who = seated[i];
+      return `<i class="sd${who ? ' on' : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%${who ? `;--c:${colorOf(who, i)}` : ''}"></i>`;
+    }).join('')}</div>`;
+  };
   $('#hubGrid').innerHTML = HUB_GAMES.map((g) => {
     const rows = tables.filter((t) => t.game === g.id).sort((a, b) => a.n - b.n).map((t) => {
-      const seated = t.seated || [], full = t.active && seated.length >= t.max;
-      const status = !t.active ? 'Empty' : t.over || t.phase === 'over' ? 'Finished' : t.phase !== 'lobby' ? 'In play' : t.open ? 'Waiting for players' : 'Being set up';
-      const who = seated.length ? esc(seated.slice(0, 3).join(', ')) + (seated.length > 3 ? ` +${seated.length - 3}` : '') : '';
-      return `<div class="ht${t.active ? ' on' : ''}"><div class="ht-n">Table ${t.n}</div><div class="ht-i"><span class="ht-s">${status}${t.active && t.label && g.id === 'blackjack' ? ' · ' + esc(t.label) : ''}</span>${who ? `<small>${who}</small>` : '<small>Be the first to sit down</small>'}</div><div class="ht-c">${t.active ? `${seated.length}/${t.max}` : ''}</div><button class="btn sm${t.active ? '' : ' primary'}" data-room="${t.id}">${!t.active ? 'Open' : full ? 'Watch' : 'Join'}</button></div>`;
+      const seated = t.seated || [], max = t.max || 6, full = t.active && seated.length >= max;
+      const fin = t.active && (t.over || t.phase === 'over');
+      const st = !t.active ? ['idle', 'Empty'] : fin ? ['idle', 'Finished'] : t.phase !== 'lobby' ? ['live', 'In play'] : ['wait', 'Waiting for players'];
+      const who = seated.length ? esc(seated.slice(0, 3).join(', ')) + (seated.length > 3 ? ` +${seated.length - 3}` : '') : 'Be the first to sit down';
+      const lbl = !t.active ? 'Play' : full ? 'Watch' : 'Join';
+      return `<div class="ht ${st[0]}">${felt(max, seated)}<div class="ht-i"><span class="ht-s"><u></u>Table ${t.n} · ${st[1]}${t.active && t.label && g.id === 'blackjack' ? ' · ' + esc(t.label) : ''}</span><small>${who}</small></div><div class="ht-c">${t.active ? `${seated.length}/${max}` : ''}</div><button class="btn sm${full ? '' : ' primary'}" data-room="${t.id}"${full ? ' data-watch="1"' : ''}>${lbl}</button></div>`;
     }).join('');
     return `<section class="hg"><div class="hg-h"><span class="hg-ic">${ic(g.icon)}</span><div><b>${g.name}</b><small>${g.blurb}</small></div></div>${rows}</section>`;
   }).join('');
 }
-async function joinRoom(room) {
+async function joinRoom(room, watch) {
   S.room = cleanRoomId(room);
   if (!S.room) return;
   hubStop();
-  try { await enter(); } catch { /* enter() already returned to the lobby with the reason */ }
+  try { await enter(watch); } catch { /* enter() already returned to the lobby with the reason */ }
 }
-$('#hubGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-room]'); if (b) joinRoom(b.dataset.room); });
+$('#hubGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-room]'); if (b) joinRoom(b.dataset.room, b.dataset.watch === '1'); });
 $('#hubCreate').addEventListener('click', () => {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   joinRoom(Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join(''));

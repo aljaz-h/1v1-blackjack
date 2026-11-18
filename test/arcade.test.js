@@ -360,3 +360,38 @@ test('mines: hidden from other players, ends the match when broke, forfeit clear
   act(st2, 0, 'forfeit');
   assert.strictEqual(st2.ar.mines[0], null);
 });
+
+test('house tables: joining seats and starts the game; others drop in mid-game', () => {
+  for (const game of ['mines', 'roulette', 'crash', 'plinko', 'dice']) {
+    const st = E.newRoom(game + '-1', T0);
+    assert.ok(st.open, 'house tables are open from the start');
+    E.applyAction(st, U[0], { type: 'join' }, T0);
+    assert.strictEqual(st.phase, 'arcade', game + ' starts by itself');
+    assert.strictEqual(E.seatOf ? E.seatOf(st, U[0].id) : 0, 0);
+    assert.ok(st.ar.solo);
+    E.applyAction(st, U[1], { type: 'join' }, T0 + 500);
+    assert.strictEqual(st.seats[1] && st.seats[1].name, 'Ben', 'second player is seated mid-game');
+    assert.ok(st.alive[1]);
+    assert.strictEqual(st.balances[1], st.settings.startingBalance);
+    E.applyAction(st, U[2], { type: 'join', watch: 1 }, T0 + 600);
+    assert.strictEqual(st.seats[2], null, 'watchers are not seated');
+    assert.strictEqual(E.buildView(st, U[0].id, T0).house, game);
+  }
+});
+
+test('house tables: when everybody is gone the next player restarts the table', () => {
+  const st = E.newRoom('mines-1', T0);
+  E.applyAction(st, U[0], { type: 'join' }, T0);
+  E.applyAction(st, U[0], { type: 'forfeit' }, T0 + 100);
+  assert.strictEqual(st.phase, 'over');
+  E.applyAction(st, U[1], { type: 'join' }, T0 + 200);
+  assert.strictEqual(st.phase, 'arcade');
+  assert.strictEqual(st.seats[0] && st.seats[0].name, 'Ben');
+});
+
+test('house tables: blackjack and poker seat you without a game picker', () => {
+  const st = E.newRoom('poker-1', T0);
+  E.applyAction(st, U[0], { type: 'join' }, T0);
+  assert.strictEqual(st.phase, 'lobby');
+  assert.strictEqual(st.seats[0] && st.seats[0].name, 'Ann');
+});
